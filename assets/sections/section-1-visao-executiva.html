@@ -1,0 +1,46 @@
+<div class="section-title">Visão Executiva</div>
+<div class="grid-2">
+    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+        <div class="meta-card highlight">
+            <div class="meta-label">Meta do Mês</div>
+            <div class="meta-value white" id="metaMes">0</div>
+            <div class="meta-sub">reuniões realizadas</div>
+        </div>
+        <div class="meta-card">
+            <div class="meta-label">Realizado</div>
+            <div class="meta-value red" id="realizadoMes">0</div>
+            <div class="pace-badge behind" id="paceBadge">Carregando...</div>
+        </div>
+        <div class="meta-card">
+            <div class="meta-label">% Atingimento</div>
+            <div class="meta-value yellow" id="atingimentoPerc">0%</div>
+            <div class="meta-sub" id="faltamReuniaoes">faltam 0 reuniões</div>
+            <div class="meta-progress-bar yellow" id="atingimentoBar" style="width: 0%;"></div>
+        </div>
+        <div class="meta-card">
+            <div class="meta-label">Pace Esperado</div>
+            <div class="meta-value white" id="paceEsperado">0</div>
+            <div class="meta-sub" id="paceDias">Carregando...</div>
+            <div class="meta-progress-bar green" id="paceBar" style="width: 0%;"></div>
+        </div>
+    </div>
+    
+    <div class="card">
+        <div class="card-header-controls">
+            <div class="card-title">Burnup de Meta</div>
+            <div class="granularity-control">
+                <label for="burnupGranularity" class="control-label">Exibir por:</label>
+                <select id="burnupGranularity" class="filter-select-small">
+                    <option value="day" selected>Data</option>
+                    <option value="month">Mês/Ano</option>
+                    <option value="week">Semana do Ano</option>
+                    <option value="weekday">Dia da Semana</option>
+                    <option value="quarter">Trimestre/Ano</option>
+                </select>
+            </div>
+        </div>
+        <div class="burnup-container">
+            <canvas id="burnupChart"></canvas>
+        </div>
+    </div>
+</div>

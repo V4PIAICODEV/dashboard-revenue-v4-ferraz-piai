@@ -1,0 +1,24 @@
+{
+    "data": [
+        {
+            "id": 1446527,
+            "ano": 2026,
+            "mes": "Fevereiro",
+            "categoria": "Aquisição",
+            "nome": "Geovanna Santos",
+            "departamento": "Pré Venda",
+            "metrica": "Reuniões Realizadas",
+            "valor": 65
+        },
+        {
+            "id": 1446529,
+            "ano": 2026,
+            "mes": "Fevereiro",
+            "categoria": "Aquisição",
+            "nome": "Gabriella Wudarski",
+            "departamento": "Pré Venda",
+            "metrica": "Reuniões Realizadas",
+            "valor": 65
+        }
+    ]
+}

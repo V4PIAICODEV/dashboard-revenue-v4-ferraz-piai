@@ -1,0 +1,26 @@
+{
+    "data": [
+        {
+            "sdr_name": "Gabriella",
+            "responsible_user_id": 1446529,
+            "prospects": 13,
+            "reunioes": 5,
+            "conv_p_r": 38.5,
+            "vendas": 5,
+            "conv_r_v": 100,
+            "status_sinaleiro": "Atenção",
+            "cor_status": "#eab308"
+        },
+        {
+            "sdr_name": "Geovanna",
+            "responsible_user_id": 1446527,
+            "prospects": 27,
+            "reunioes": 8,
+            "conv_p_r": 29.6,
+            "vendas": 4,
+            "conv_r_v": 50,
+            "status_sinaleiro": "Atenção",
+            "cor_status": "#eab308"
+        }
+    ]
+}

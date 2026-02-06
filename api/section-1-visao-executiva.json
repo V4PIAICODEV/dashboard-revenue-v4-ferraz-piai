@@ -1,0 +1,19 @@
+{
+    "data": [
+        {
+            "dia_mes": 2,
+            "qtd_realizada": 4,
+            "acumulado_realizado": 4
+        },
+        {
+            "dia_mes": 3,
+            "qtd_realizada": 1,
+            "acumulado_realizado": 5
+        },
+        {
+            "dia_mes": 4,
+            "qtd_realizada": 4,
+            "acumulado_realizado": 9
+        }
+    ]
+}

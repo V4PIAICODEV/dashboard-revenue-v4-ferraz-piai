@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V4 Company | Sales Monitor</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://npmcdn.com/flatpickr/dist/l10n/pt.js"></script>
+
+    <link rel="stylesheet" href="assets/css/core.css">
+    <link rel="stylesheet" href="assets/css/components.css">
+    <link rel="stylesheet" href="assets/css/sections.css">
+</head>
+<body>
+    <header class="header">
+        <div class="header-title">
+            <span class="v4">V4</span><span class="company">COMPANY</span>
+            <span class="separator">|</span>
+            <span class="monitor">SALES MONITOR | Funil de Pré-vendas</span>
+        </div>
+        <div class="header-date" id="currentDate">Carregando...</div>
+    </header>
+
+    <div class="filters-container">
+        <div class="filter-wrapper">
+            <span class="filter-label">Período</span>
+            <div class="date-range-picker" id="dateRangePicker">
+                <div class="date-display" id="dateDisplay">
+                    <span class="calendar-icon">📅</span>
+                    <span id="dateRangeText">Carregando...</span>
+                    <span class="arrow-icon">▼</span>
+                </div>
+                <div class="date-popover" id="datePopover">
+                    <div class="date-presets">
+                        <button class="preset-btn" data-range="today">Hoje</button>
+                        <button class="preset-btn" data-range="yesterday">Ontem</button>
+                        <button class="preset-btn" data-range="7">Últimos 7 dias</button>
+                        <button class="preset-btn" data-range="15">Últimos 15 dias</button>
+                        <button class="preset-btn" data-range="30">Últimos 30 dias</button>
+                        <button class="preset-btn active" data-range="month">Este Mês</button>
+                    </div>
+                    <div class="date-calendar-container">
+                        <div id="inlineCalendar"></div>
+                        <div class="popover-actions">
+                            <span id="selectionInfo">Selecione o intervalo</span>
+                            <button id="applyDateBtn" class="filter-btn apply-btn">APLICAR</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-wrapper">
+            <span class="filter-label">SDR / Pessoa</span>
+            <select id="sdrFilter" class="filter-select">
+                <option value="all">Todos os SDRs</option>
+            </select>
+        </div>
+
+        <div class="filter-wrapper">
+            <span class="filter-label">Canal de Origem</span>
+            <select id="channelFilter" class="filter-select">
+                <option value="all">Todos os Canais</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="section-1-container"></div>
+    <div id="section-2-container"></div>
+    <div id="section-3-container"></div>
+    <div id="section-4-container"></div>
+    <div id="section-5-container"></div>
+    <div id="section-6-container"></div>
+
+    <script src="assets/js/core.js"></script>
+    <script src="assets/js/charts.js"></script>
+    <script src="assets/js/data-fetchers.js"></script>
+
+    <script>
+        async function loadSection(id, file) {
+            try {
+                const r = await fetch(`assets/sections/${file}`);
+                document.getElementById(`section-${id}-container`).innerHTML = await r.text();
+            } catch (e) { console.error(e); }
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            initializeDateFilterComponent();
+            
+            await Promise.all([
+                loadSection(1, 'section-1-visao-executiva.html'),
+                loadSection(2, 'section-2-sinaleiro-sdr.html'),
+                loadSection(3, 'section-3-bant.html'),
+                loadSection(4, 'section-4-canais.html'),
+                loadSection(5, 'section-5-funil.html'),
+                loadSection(6, 'section-6-perdas.html')
+            ]);
+            
+            loadAllData();
+        });
+    </script>
+</body>
+</html>

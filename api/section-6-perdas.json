@@ -1,0 +1,49 @@
+{
+    "data": [
+        {
+            "canal_nome": "Black box",
+            "total_agendados": 56,
+            "qtd_realizadas": 46,
+            "qtd_perdidas_143": 6,
+            "taxa_noshow": 17.9,
+            "taxa_perda": 10.7,
+            "cor_alerta": "#22c55e"
+        },
+        {
+            "canal_nome": "Lead Broker",
+            "total_agendados": 19,
+            "qtd_realizadas": 17,
+            "qtd_perdidas_143": 0,
+            "taxa_noshow": 10.5,
+            "taxa_perda": 0,
+            "cor_alerta": "#22c55e"
+        },
+        {
+            "canal_nome": "Não identificado",
+            "total_agendados": 5,
+            "qtd_realizadas": 5,
+            "qtd_perdidas_143": 0,
+            "taxa_noshow": 0,
+            "taxa_perda": 0,
+            "cor_alerta": "#22c55e"
+        },
+        {
+            "canal_nome": "Indicação",
+            "total_agendados": 4,
+            "qtd_realizadas": 3,
+            "qtd_perdidas_143": 0,
+            "taxa_noshow": 25,
+            "taxa_perda": 0,
+            "cor_alerta": "#22c55e"
+        },
+        {
+            "canal_nome": "Evento",
+            "total_agendados": 1,
+            "qtd_realizadas": 1,
+            "qtd_perdidas_143": 0,
+            "taxa_noshow": 0,
+            "taxa_perda": 0,
+            "cor_alerta": "#22c55e"
+        }
+    ]
+}

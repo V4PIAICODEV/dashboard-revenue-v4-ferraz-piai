@@ -1,0 +1,17 @@
+{
+    "data": [
+        {
+            "count_prospect": 910,
+            "count_tentativa": 110,
+            "count_conectado": 99,
+            "count_reuniao": 78,
+            "count_venda": 72,
+            "tx_prospect_tentativa": 12.1,
+            "tx_tentativa_conectado": 90,
+            "tx_conectado_reuniao": 78.8,
+            "tx_reuniao_venda": 92.3,
+            "tx_global": 7.9,
+            "ciclo_medio_dias": 4.4
+        }
+    ]
+}

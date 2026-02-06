@@ -1,0 +1,41 @@
+<div class="section-title">Sinaleiro de Gestão por SDR</div>
+<div class="grid-2-1">
+    <div class="card">
+        <div class="card-title">Performance por SDR</div>
+        <table class="sinaleiro-table">
+            <thead>
+                <tr>
+                    <th style="width: 50px;">Status</th>
+                    <th>SDR</th>
+                    <th>Prospects</th>
+                    <th>Agendadas</th>
+                    <th>Conv. P→A</th>
+                    <th>Realizadas</th>
+                    <th>Conv. A→R</th>
+                </tr>
+            </thead>
+            <tbody id="sinaleiro-body">
+                <tr>
+                    <td colspan="7" style="text-align: center;">Carregando dados...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="card">
+        <div class="card-title">Resumo de Alertas</div>
+        <div class="alert-summary">
+            <div class="alert-item critical">
+                <div class="alert-count red" id="alert-critical">-</div>
+                <div class="alert-text"><strong>Atenção Crítica</strong>P→A < 20% ou A→R < 70%, ou ambas abaixo da meta</div>
+            </div>
+            <div class="alert-item warning">
+                <div class="alert-count yellow" id="alert-warning">-</div>
+                <div class="alert-text"><strong>Requer Atenção</strong>P→A < 40% ou A→R < 90% (uma abaixo da meta)</div>
+            </div>
+            <div class="alert-item success">
+                <div class="alert-count green" id="alert-success">-</div>
+                <div class="alert-text"><strong>Na Meta</strong>P→A ≥ 40% e A→R ≥ 90%</div>
+            </div>
+        </div>
+    </div>
+</div>
