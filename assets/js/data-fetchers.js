@@ -33,6 +33,7 @@ async function loadAllData() {
         DATA_CACHE.loss = getArr(responses[6]);
         const upd = getArr(responses[7]);
         if(upd.length) DATA_CACHE.lastUpdate = upd[0].data_hora_ultimo_update;
+        
         populateDropdowns();
         renderAll();
     } catch (error) { console.error("Erro LoadData:", error); }
@@ -52,15 +53,23 @@ function applyFilters(data, skipSdrCheck = false) {
             const d = new Date(item.data_referencia + 'T12:00:00');
             if (d < start || d > end) return false;
         }
-        // Filtro SDR (Com bypass opcional)
+        
+        // Filtro SDR (Se skipSdrCheck for true, ignora este bloco)
         if (!skipSdrCheck && GlobalFilter.sdrId !== 'all') {
             const id = item.responsible_user_id || item.sdr_id || item.id;
+            
             if (id) {
+                // Se tem ID, compara string com string
                 if (String(id) !== String(GlobalFilter.sdrId)) return false;
-            } else if (item.sdr_name) {
-                 // Se não tem ID mas tem nome, tenta filtrar pelo nome associado ao ID (complexo, melhor ignorar se não tiver ID)
+            } else {
+                // Se NÃO tem ID nos dados (caso do Burnup), mas o filtro está ligado:
+                // Se o dado tiver nome do SDR, filtramos pelo nome? Não, melhor remover pois não pertence ao SDR selecionado.
+                // Mas se for o dataset de Burnup, ele nunca tem ID. O tratamento disso é feito no renderExecutiveView.
+                // Aqui, por segurança padrão, se não tem ID e estamos filtrando por SDR, removemos a linha.
+                if (item.sdr_name) return false; 
             }
         }
+        
         // Filtro Canal
         if (GlobalFilter.channelId !== 'all') {
             const ch = item.canal_origem || item.canal_nome || 'Não identificado';
@@ -75,24 +84,28 @@ function populateDropdowns() {
     if (sdrSelect) {
         while(sdrSelect.options.length > 1) sdrSelect.remove(1);
         
-        // MAP para garantir unicidade pelo NOME
+        // Usar Map para garantir unicidade pelo NOME
         const uniqueNames = new Map();
         
-        // Prioridade 1: Metas (Nomes mais limpos)
+        // 1. Prioridade: Metas (Nomes Oficiais)
         DATA_CACHE.metas.forEach(i => {
             if(i.nome && i.id) uniqueNames.set(i.nome.trim(), i.id);
         });
         
-        // Prioridade 2: SDR Performance
+        // 2. SDR Performance
         DATA_CACHE.sdr.forEach(i => {
             if(i.sdr_name && i.responsible_user_id) {
-                if (!uniqueNames.has(i.sdr_name.trim())) {
-                    uniqueNames.set(i.sdr_name.trim(), i.responsible_user_id);
-                }
+                if (!uniqueNames.has(i.sdr_name.trim())) uniqueNames.set(i.sdr_name.trim(), i.responsible_user_id);
             }
         });
+        
+        // 3. BANT
+        DATA_CACHE.bant.forEach(i => {
+            const n = i.sdr_name; const id = i.responsible_user_id || i.sdr_id;
+            if(n && id && !uniqueNames.has(n.trim())) uniqueNames.set(n.trim(), id);
+        });
 
-        // Ordena e renderiza
+        // Ordenar e Inserir
         Array.from(uniqueNames.keys()).sort().forEach(name => {
             const opt = document.createElement('option');
             opt.value = uniqueNames.get(name);
@@ -119,48 +132,96 @@ function renderLastUpdate() {
 }
 
 function renderExecutiveView() {
-    // 1. Definição do Realizado
+    let aggData = [];
     let realizado = 0;
     
+    // Lógica principal de decisão da fonte de dados
     if (GlobalFilter.sdrId !== 'all') {
-        // Se tem filtro de SDR, pegamos o total da tabela SDR (que tem o ID correto)
-        const sdrData = applyFilters(DATA_CACHE.sdr);
-        // O campo 'vendas' no sdrPerformance é o total de reuniões realizadas
-        realizado = sdrData.reduce((sum, item) => sum + (parseInt(item.vendas) || 0), 0);
+        // --- CENÁRIO: SDR SELECIONADO ---
+        // O dataset 'burnup' original não serve pois não tem ID de SDR.
+        // Vamos construir o burnup usando o dataset 'channels' ou 'sdr' que tem datas e IDs.
+        
+        const sourceData = applyFilters(DATA_CACHE.channels); // Canais tem data_referencia e SDR
+        const dailyAgg = {};
+        
+        sourceData.forEach(item => {
+            const k = item.data_referencia;
+            // No dataset de canais, 'vendas' = Reuniões Realizadas
+            // 'reunioes' = Reuniões Agendadas
+            // Queremos Realizadas:
+            const qtd = parseInt(item.vendas) || 0;
+            if (k) {
+                if(!dailyAgg[k]) dailyAgg[k] = 0;
+                dailyAgg[k] += qtd;
+            }
+        });
+        
+        aggData = Object.keys(dailyAgg).map(k => ({
+            data_referencia: k,
+            qtd_realizada: dailyAgg[k]
+        })).sort((a,b) => new Date(a.data_referencia) - new Date(b.data_referencia));
+        
+        realizado = aggData.reduce((sum, i) => sum + i.qtd_realizada, 0);
+
     } else {
-        // Se é geral, usamos o burnup filtrado por data
-        const burnupData = applyFilters(DATA_CACHE.burnup);
-        realizado = burnupData.reduce((sum, item) => sum + (parseInt(item.qtd_realizada) || 0), 0);
+        // --- CENÁRIO: TODOS (GERAL) ---
+        // Usamos o dataset oficial de burnup
+        const filtered = applyFilters(DATA_CACHE.burnup);
+        const dailyAgg = {};
+        filtered.forEach(item => {
+            const k = item.data_referencia;
+            if(!dailyAgg[k]) dailyAgg[k] = 0;
+            dailyAgg[k] += parseInt(item.qtd_realizada) || 0;
+        });
+        aggData = Object.keys(dailyAgg).map(k => ({ 
+            data_referencia: k, 
+            qtd_realizada: dailyAgg[k] 
+        })).sort((a,b) => new Date(a.data_referencia) - new Date(b.data_referencia));
+        
+        realizado = aggData.reduce((sum, i) => sum + i.qtd_realizada, 0);
     }
 
-    // 2. Definição da Meta
+    const start = new Date(GlobalFilter.startDate + 'T00:00:00');
+    const end = new Date(GlobalFilter.endDate + 'T23:59:59');
+    
+    // Cálculo da Meta
     let targetMetas = DATA_CACHE.metas;
     if (GlobalFilter.sdrId !== 'all') {
         targetMetas = targetMetas.filter(m => String(m.id) === String(GlobalFilter.sdrId));
     }
     
-    const start = new Date(GlobalFilter.startDate + 'T00:00:00');
-    const end = new Date(GlobalFilter.endDate + 'T23:59:59');
     const targetYear = end.getFullYear();
     const meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
     const nomeMes = meses[end.getMonth()];
     
+    // Soma das metas (para o caso de múltiplas linhas)
     const metaMensal = targetMetas
         .filter(m => m.ano === targetYear && m.mes === nomeMes)
         .reduce((sum, m) => sum + (parseInt(m.valor)||0), 0);
     
     const daysInMonth = new Date(targetYear, end.getMonth() + 1, 0).getDate();
     const daysSelected = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-    let metaProp = (daysSelected >= 28) ? metaMensal : (daysInMonth > 0 ? Math.round((metaMensal / daysInMonth) * daysSelected) : 0);
+    
+    // Meta Proporcional
+    let metaProp = 0;
+    if (daysSelected >= 28) {
+        metaProp = metaMensal;
+    } else if (daysInMonth > 0) {
+        metaProp = Math.round((metaMensal / daysInMonth) * daysSelected);
+    }
 
-    // 3. Atualiza Cards
+    // Atualização do DOM
     const elMeta = document.getElementById('metaMes'); if(elMeta) elMeta.textContent = metaProp;
     const elReal = document.getElementById('realizadoMes'); if(elReal) elReal.textContent = realizado;
+    
+    const ating = metaProp > 0 ? (realizado/metaProp)*100 : 0;
     const elPerc = document.getElementById('atingimentoPerc'); 
-    if(elPerc) elPerc.textContent = (metaProp > 0 ? (realizado/metaProp)*100 : 0).toFixed(1) + '%';
+    if(elPerc) elPerc.textContent = ating.toFixed(1) + '%';
+    
     const elPace = document.getElementById('paceEsperado'); if(elPace) elPace.textContent = metaProp;
     const elFaltam = document.getElementById('faltamReuniaoes'); if(elFaltam) elFaltam.textContent = `faltam ${Math.max(0, metaProp - realizado)} reuniões`;
 
+    // Badges
     const elPaceBadge = document.getElementById('paceBadge');
     const elPaceDias = document.getElementById('paceDias');
     if (elPaceBadge && elPaceDias) {
@@ -170,36 +231,24 @@ function renderExecutiveView() {
         const diasRestantes = Math.max(0, Math.ceil((end - new Date()) / (1000 * 60 * 60 * 24)));
         elPaceDias.textContent = `restam ${diasRestantes} dias no período`;
     }
-
-    // 4. Preparação do Gráfico (Lógica de Proporção para SDR)
-    let chartData = [];
     
-    // Pegamos a curva global (sem filtro de SDR) para usar como "molde"
-    const globalBurnup = applyFilters(DATA_CACHE.burnup, true); 
-    const globalTotal = globalBurnup.reduce((sum, i) => sum + (parseInt(i.qtd_realizada)||0), 0);
+    // Atualiza barras de progresso
+    const barAting = document.getElementById('atingimentoBar');
+    if(barAting) barAting.style.width = Math.min(ating, 100) + '%';
+    const barPace = document.getElementById('paceBar');
+    if(barPace) {
+        // Pace visual simples: dia do mês / total dias
+        const hoje = new Date().getDate();
+        const pctMes = (hoje / daysInMonth) * 100;
+        barPace.style.width = Math.min(pctMes, 100) + '%';
+    }
 
-    // Agrupamos os dados globais por dia
-    const dailyMap = {};
-    globalBurnup.forEach(item => {
-        const k = item.data_referencia;
-        if(k) { if(!dailyMap[k]) dailyMap[k]=0; dailyMap[k] += (parseInt(item.qtd_realizada)||0); }
-    });
-
-    // Se temos um SDR selecionado, aplicamos a proporção
-    const ratio = (GlobalFilter.sdrId !== 'all' && globalTotal > 0) ? (realizado / globalTotal) : 1;
-
-    // Reconstrói o array para o gráfico com a proporção aplicada
-    chartData = Object.keys(dailyMap).map(k => ({
-        data_referencia: k,
-        // Se for All, usa valor original. Se for SDR, usa valor proporcional para manter a curva
-        qtd_realizada: GlobalFilter.sdrId !== 'all' ? (dailyMap[k] * ratio) : dailyMap[k]
-    })).sort((a,b) => new Date(a.data_referencia) - new Date(b.data_referencia));
-
+    // Chama o gráfico com os dados corretos (aggData agora contém os dados filtrados ou reconstruídos)
     const granularity = document.getElementById('burnupGranularity')?.value || 'day';
-    createBurnupChart(chartData, targetMetas, GlobalFilter.startDate, GlobalFilter.endDate, granularity);
+    createBurnupChart(aggData, targetMetas, GlobalFilter.startDate, GlobalFilter.endDate, granularity);
 }
 
-// ... (MANTENHA AS OUTRAS FUNÇÕES IGUAIS: renderFunnelData, renderChannelPerformance, etc) ...
+// MANTENHA AS OUTRAS FUNÇÕES INALTERADAS ABAIXO
 function renderFunnelData() {
     const filtered = applyFilters(DATA_CACHE.funnel);
     const c = { prospect: 0, tentativa: 0, conectado: 0, reuniao: 0, venda: 0, sum_days: 0, count_days: 0 };
@@ -286,7 +335,7 @@ function renderSdrPerformance() {
     const filtered = applyFilters(DATA_CACHE.sdr);
     const sdrMap = {};
     filtered.forEach(i => {
-        const id = i.responsible_user_id;
+        const id = i.responsible_user_id || i.sdr_name;
         if(!sdrMap[id]) sdrMap[id] = { name: i.sdr_name, p:0, r:0, v:0 };
         sdrMap[id].p += parseInt(i.prospects||0); sdrMap[id].r += parseInt(i.reunioes||0); sdrMap[id].v += parseInt(i.vendas||0);
     });
