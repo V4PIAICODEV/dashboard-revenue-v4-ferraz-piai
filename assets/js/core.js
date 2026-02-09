@@ -35,13 +35,14 @@ function initializeDateFilterComponent() {
 
     if(!display) return;
 
-    // Configurar Flatpickr (1 MÊS - ORIGINAL RESTAURADO)
+    // Configurar Flatpickr
     datePickerInstance = flatpickr("#inlineCalendar", {
         mode: "range",
         inline: true,
         dateFormat: "Y-m-d",
-        showMonths: 1, // RESTAURADO PARA 1 MÊS
+        showMonths: 1,
         locale: "pt",
+        monthSelectorType: 'static', // <--- ALTERAÇÃO AQUI: Remove o dropdown e deixa estático
         onChange: function(selectedDates) {
             if (selectedDates.length > 0) presetBtns.forEach(btn => btn.classList.remove('active'));
             if (selectedDates.length === 2) {
@@ -127,11 +128,14 @@ function setPresetRange(rangeKey) {
     else if (rangeKey === 'yesterday') {
         start.setDate(today.getDate() - 1);
         end.setDate(today.getDate() - 1);
+    } else if (rangeKey === '7') {
+        start.setDate(today.getDate() - 6);
+    } else if (rangeKey === '15') {
+        start.setDate(today.getDate() - 14);
+    } else if (rangeKey === '30') {
+        start.setDate(today.getDate() - 29);
     } else if (rangeKey === 'month') {
         start.setDate(1); 
-    } else {
-        const days = parseInt(rangeKey);
-        start.setDate(today.getDate() - days);
     }
 
     GlobalFilter.startDate = formatDateToInput(start);

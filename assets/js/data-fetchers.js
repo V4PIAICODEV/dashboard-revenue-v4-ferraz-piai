@@ -69,7 +69,10 @@ function applyFilters(data) {
         }
         if (GlobalFilter.sdrId !== 'all') {
             const id = item.responsible_user_id || item.sdr_id;
-            if (String(id) !== String(GlobalFilter.sdrId)) return false;
+            // Se o item não tem ID de SDR, ele será filtrado, a menos que estejamos reconstruindo os dados
+            if (id && String(id) !== String(GlobalFilter.sdrId)) return false;
+            // Se o item não tem campo de ID mas estamos filtrando, assumimos mismatch (exceto no fallback)
+            if (!id && GlobalFilter.sdrId !== 'all') return false; 
         }
         if (GlobalFilter.channelId !== 'all') {
             const ch = item.canal_origem || item.canal_nome || 'Não identificado';
@@ -81,20 +84,30 @@ function applyFilters(data) {
 
 function populateDropdowns() {
     const sdrSelect = document.getElementById('sdrFilter');
-    if (sdrSelect && sdrSelect.options.length <= 1) {
+    if (sdrSelect) {
+        while (sdrSelect.options.length > 1) {
+            sdrSelect.remove(1);
+        }
         const unique = new Map();
         [...DATA_CACHE.sdr, ...DATA_CACHE.bant].forEach(i => {
-            if(i.responsible_user_id && i.sdr_name) unique.set(i.responsible_user_id, i.sdr_name);
-            if(i.sdr_id && i.sdr_name) unique.set(i.sdr_id, i.sdr_name);
+            const name = i.sdr_name;
+            const id = i.responsible_user_id || i.sdr_id;
+            if(name && id && !unique.has(name)) {
+                unique.set(name, id);
+            }
         });
-        unique.forEach((name, id) => {
+        unique.forEach((id, name) => {
             const opt = document.createElement('option');
             opt.value = id; opt.textContent = name;
             sdrSelect.appendChild(opt);
         });
     }
+
     const chSelect = document.getElementById('channelFilter');
-    if (chSelect && chSelect.options.length <= 1) {
+    if (chSelect) {
+        while (chSelect.options.length > 1) {
+            chSelect.remove(1);
+        }
         const unique = new Set();
         [...DATA_CACHE.burnup, ...DATA_CACHE.channels].forEach(i => {
             const ch = i.canal_origem || i.canal_nome;
@@ -114,19 +127,58 @@ function renderLastUpdate() {
 }
 
 function renderExecutiveView() {
-    const filtered = applyFilters(DATA_CACHE.burnup);
-    const dailyAgg = {};
-    filtered.forEach(item => {
-        const k = item.data_referencia;
-        if(!dailyAgg[k]) dailyAgg[k] = 0;
-        dailyAgg[k] += parseInt(item.qtd_realizada) || 0;
-    });
-    const aggData = Object.keys(dailyAgg).map(k => ({ data_referencia: k, qtd_realizada: dailyAgg[k] })).sort((a,b)=>new Date(a.data_referencia)-new Date(b.data_referencia));
+    let aggData = [];
+    
+    // 1. Tenta filtrar o dataset padrão de Burnup
+    let filtered = applyFilters(DATA_CACHE.burnup);
+    
+    // 2. FALLBACK INTELIGENTE:
+    // Se filtramos por SDR e o resultado foi zero (provavelmente porque o dataset de burnup não tem IDs de SDR),
+    // tentamos reconstruir os dados usando o dataset de Canais (que sabemos que tem SDR, Data e Vendas).
+    if (GlobalFilter.sdrId !== 'all' && filtered.length === 0) {
+        // Usamos DATA_CACHE.channels que tem granularidade por SDR
+        const channelData = applyFilters(DATA_CACHE.channels);
+        const dailyAgg = {};
+        
+        channelData.forEach(item => {
+            const k = item.data_referencia;
+            // 'vendas' no dataset de canais = Reuniões Realizadas
+            // 'reunioes' no dataset de canais = Reuniões Agendadas
+            // Aqui queremos Realizadas para o Burnup
+            const qtd = parseInt(item.vendas) || 0; 
+            
+            if (k) {
+                if(!dailyAgg[k]) dailyAgg[k] = 0;
+                dailyAgg[k] += qtd;
+            }
+        });
+        
+        aggData = Object.keys(dailyAgg).map(k => ({ 
+            data_referencia: k, 
+            qtd_realizada: dailyAgg[k] 
+        })).sort((a,b) => new Date(a.data_referencia) - new Date(b.data_referencia));
+        
+    } else {
+        // Fluxo normal (Sem filtro de SDR ou quando Burnup tem os dados)
+        const dailyAgg = {};
+        filtered.forEach(item => {
+            const k = item.data_referencia;
+            if(!dailyAgg[k]) dailyAgg[k] = 0;
+            dailyAgg[k] += parseInt(item.qtd_realizada) || 0;
+        });
+        aggData = Object.keys(dailyAgg).map(k => ({ 
+            data_referencia: k, 
+            qtd_realizada: dailyAgg[k] 
+        })).sort((a,b) => new Date(a.data_referencia) - new Date(b.data_referencia));
+    }
+
+    // Calcula total realizado baseado nos dados agregados (seja do original ou do fallback)
     const realizado = aggData.reduce((sum, i) => sum + i.qtd_realizada, 0);
 
     const start = new Date(GlobalFilter.startDate + 'T00:00:00');
     const end = new Date(GlobalFilter.endDate + 'T23:59:59');
     
+    // Cálculo de Meta
     let targetMetas = DATA_CACHE.metas;
     if (GlobalFilter.sdrId !== 'all') {
         targetMetas = targetMetas.filter(m => String(m.id) === String(GlobalFilter.sdrId));
@@ -144,14 +196,35 @@ function renderExecutiveView() {
     if (daysSelected >= 28) metaProp = metaMensal;
     else if(daysInMonth > 0) metaProp = Math.round((metaMensal / daysInMonth) * daysSelected);
 
+    // Atualiza DOM
     const elMeta = document.getElementById('metaMes'); if(elMeta) elMeta.textContent = metaProp;
     const elReal = document.getElementById('realizadoMes'); if(elReal) elReal.textContent = realizado;
+    
     const ating = metaProp > 0 ? (realizado/metaProp)*100 : 0;
     const elPerc = document.getElementById('atingimentoPerc'); if(elPerc) elPerc.textContent = ating.toFixed(1) + '%';
+    
     const elPace = document.getElementById('paceEsperado'); if(elPace) elPace.textContent = metaProp;
     const elFaltam = document.getElementById('faltamReuniaoes'); if(elFaltam) elFaltam.textContent = `faltam ${Math.max(0, metaProp - realizado)} reuniões`;
 
-    createBurnupChart(aggData, targetMetas, GlobalFilter.startDate, GlobalFilter.endDate);
+    // Atualiza Badges de Pace
+    const elPaceBadge = document.getElementById('paceBadge');
+    const elPaceDias = document.getElementById('paceDias');
+    if (elPaceBadge && elPaceDias) {
+        const diff = realizado - metaProp;
+        if (diff >= 0) {
+            elPaceBadge.className = 'pace-badge ahead';
+            elPaceBadge.textContent = `+${diff} adiantado`;
+        } else {
+            elPaceBadge.className = 'pace-badge behind';
+            elPaceBadge.textContent = `${diff} atrasado`;
+        }
+        const diasRestantes = Math.max(0, Math.ceil((end - new Date()) / (1000 * 60 * 60 * 24)));
+        elPaceDias.textContent = `restam ${diasRestantes} dias no período`;
+    }
+
+    // Renderiza Gráfico
+    const granularity = document.getElementById('burnupGranularity')?.value || 'day';
+    createBurnupChart(aggData, targetMetas, GlobalFilter.startDate, GlobalFilter.endDate, granularity);
 }
 
 function renderFunnelData() {

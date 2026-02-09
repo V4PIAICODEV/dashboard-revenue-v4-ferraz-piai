@@ -1,111 +1,137 @@
 let burnupChartInstance = null;
 
 /**
- * Cria/Atualiza o Gráfico de Burnup
- * @param {Array} filteredData - Dados diários já filtrados por SDR/Canal (formato: [{data_referencia: 'YYYY-MM-DD', qtd_realizada: N}, ...])
- * @param {Array} metasData - Array de metas (para calcular a meta total do período)
+ * Cria/Atualiza o Gráfico de Burnup com suporte a granularidade
+ * @param {Array} filteredData - Dados diários (aggData do data-fetchers)
+ * @param {Array} metasData - Array de metas
  * @param {String} startDateStr - 'YYYY-MM-DD'
  * @param {String} endDateStr - 'YYYY-MM-DD'
+ * @param {String} granularity - 'day', 'week', 'month', 'quarter', 'weekday'
  */
-async function createBurnupChart(filteredData, metasData, startDateStr, endDateStr) {
+async function createBurnupChart(filteredData, metasData, startDateStr, endDateStr, granularity = 'day') {
     try {
         const ctx = document.getElementById('burnupChart');
         if (!ctx) return;
 
-        // Destruir gráfico anterior para evitar sobreposição/memory leak
         if (burnupChartInstance) {
             burnupChartInstance.destroy();
         }
 
-        // 1. Processar Datas do Intervalo (Eixo X Completo)
-        // Isso garante que dias sem vendas apareçam com valor 0 ou acumulado anterior, sem buracos.
+        // 1. Setup inicial de datas
         const start = new Date(startDateStr + 'T00:00:00');
         const end = new Date(endDateStr + 'T23:59:59');
-        const dateArray = [];
-        let curr = new Date(start);
-
-        while (curr <= end) {
-            dateArray.push(new Date(curr));
-            curr.setDate(curr.getDate() + 1);
-        }
-
-        // 2. Mapear Dados Reais (Agrupados por dia)
-        // filteredData pode ter múltiplas entradas por dia se não estiver agregado. 
-        // Mas o fetchExecutiveView já nos passa 'aggData' que é único por dia.
-        const dataMap = {};
+        
+        // Mapear dados existentes por dia (YYYY-MM-DD)
+        const dailyMap = {};
         filteredData.forEach(item => {
-            if (item.data_referencia) {
-                // data_referencia vem do banco como YYYY-MM-DD
-                dataMap[item.data_referencia] = parseInt(item.qtd_realizada) || 0;
-            }
+            if (item.data_referencia) dailyMap[item.data_referencia] = parseInt(item.qtd_realizada) || 0;
         });
 
-        // 3. Calcular Meta Total do Período (Para a linha de Meta e Pace)
-        // Reutilizamos a lógica do fetchExecutiveView para consistência, mas aqui recalculamos para o gráfico.
-        // Se filtro = Mês, Meta = Meta Mensal.
-        // Se filtro = Custom, Meta = Proporcional ou Total (depende da regra de visualização).
-        // Para Burnup, geralmente queremos ver a perseguição à Meta Mensal.
-        
-        // Achar Meta Mensal do SDR selecionado (ou todos)
-        const targetYear = end.getFullYear();
-        const nomeMes = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"][end.getMonth()];
-        
-        // Filtra metas pelo SDR selecionado no GlobalFilter (acessível via window ou passado como arg)
-        // Como charts.js é separado, melhor calcular a meta total aqui baseada nos dados passados ou assumir que metasData já vem filtrado?
-        // Vamos assumir que metasData é o array bruto e filtramos aqui se tivermos acesso ao ID.
-        // Simplificação: Passar a Meta Total calculada como argumento seria melhor, mas vamos recalcular.
-        
-        // Hack: Pegar o valor que já foi calculado e inserido no DOM "Meta do Mês" para garantir consistência visual
+        // 2. Determinar Meta Total (reutilizando lógica do DOM para consistência)
         const metaTotalDOM = parseInt(document.getElementById('metaMes')?.textContent || 0);
-        const metaTotal = metaTotalDOM > 0 ? metaTotalDOM : 100; // Fallback
+        const metaTotal = metaTotalDOM > 0 ? metaTotalDOM : 100;
 
-        // 4. Construir Datasets
+        // 3. Processar Agrupamento
         const labels = [];
         const dataRealizado = [];
         const dataPace = [];
         const dataMeta = [];
-        const dailyCounts = []; // Para tooltip
+        const tooltips = []; // Infos extras para tooltip
 
-        let acumulado = 0;
-        
-        dateArray.forEach((dateObj, i) => {
-            // Label: DD (ou DD/MM se cruzar mês)
-            const d = String(dateObj.getDate()).padStart(2, '0');
-            const m = String(dateObj.getMonth()+1).padStart(2, '0');
+        // Variáveis de controle de iteração
+        let curr = new Date(start);
+        let acumuladoGlobal = 0;
+        let buckets = new Map(); // Chave -> { dateObj, value }
+
+        // Preencher dias vazios e calcular acumulado diário primeiro
+        const allDays = [];
+        while (curr <= end) {
+            const dStr = curr.toISOString().split('T')[0];
+            const val = dailyMap[dStr] || 0;
+            acumuladoGlobal += val;
+            
+            allDays.push({
+                date: new Date(curr),
+                dateStr: dStr,
+                value: val,
+                acumulado: acumuladoGlobal
+            });
+            curr.setDate(curr.getDate() + 1);
+        }
+
+        // Função auxiliar para gerar chaves de agrupamento
+        const getGroupKey = (dateObj, type) => {
+            const d = dateObj.getDate();
+            const m = dateObj.getMonth();
             const y = dateObj.getFullYear();
-            const dateKey = `${y}-${m}-${d}`;
+            const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
             
-            labels.push(d); // Só dia para ficar limpo como no print
-
-            // Realizado Acumulado
-            const valDia = dataMap[dateKey] || 0;
-            acumulado += valDia;
-            
-            // Só plotar realizado até "hoje" (para não mostrar linha reta no futuro)
-            const hoje = new Date();
-            // Zerar horas para comparação justa
-            const hojeMidnight = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
-            const dateMidnight = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
-
-            if (dateMidnight <= hojeMidnight) {
-                dataRealizado.push(acumulado);
-                dailyCounts.push(valDia);
-            } else {
-                dataRealizado.push(null); // Futuro = null para cortar a linha
-                dailyCounts.push(null);
+            if (type === 'day') return `${String(d).padStart(2,'0')}/${meses[m]}`;
+            if (type === 'month') return `${meses[m]}/${y}`;
+            if (type === 'quarter') return `Q${Math.floor(m/3)+1}/${y}`;
+            if (type === 'week') {
+                const oneJan = new Date(y, 0, 1);
+                const numberOfDays = Math.floor((dateObj - oneJan) / (24 * 60 * 60 * 1000));
+                const result = Math.ceil((dateObj.getDay() + 1 + numberOfDays) / 7);
+                return `Sem ${result}`;
             }
+            if (type === 'weekday') {
+                const dias = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+                return dias[dateObj.getDay()];
+            }
+            return d;
+        };
 
-            // Pace Ideal (Linear: de 0 até Meta no último dia)
-            // i=0 -> pace ~0? Não, pace dia 1 = meta/dias.
-            const totalDays = dateArray.length;
-            const paceValue = (metaTotal / totalDays) * (i + 1);
-            dataPace.push(paceValue);
-
-            // Meta Constante
-            dataMeta.push(metaTotal);
+        // Agrupar dados
+        allDays.forEach(dayInfo => {
+            const key = getGroupKey(dayInfo.date, granularity);
+            
+            if (!buckets.has(key)) {
+                buckets.set(key, { 
+                    lastAccumulated: dayInfo.acumulado,
+                    periodValue: dayInfo.value, 
+                    lastDate: dayInfo.date
+                });
+            } else {
+                const b = buckets.get(key);
+                b.lastAccumulated = dayInfo.acumulado;
+                b.periodValue += dayInfo.value;
+                b.lastDate = dayInfo.date;
+            }
         });
 
-        // 5. Configurar Chart.js
+        // 4. Transformar Buckets em Arrays para o Chart
+        let keysArr = Array.from(buckets.keys());
+        
+        if (granularity === 'weekday') {
+            const order = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+            keysArr.sort((a,b) => order.indexOf(a) - order.indexOf(b));
+        }
+
+        const totalBuckets = keysArr.length;
+        const hoje = new Date();
+        hoje.setHours(0,0,0,0);
+
+        keysArr.forEach((key, index) => {
+            labels.push(key);
+            const bucket = buckets.get(key);
+            
+            dataMeta.push(metaTotal);
+
+            const paceVal = (metaTotal / totalBuckets) * (index + 1);
+            dataPace.push(paceVal);
+
+            // Realizado só até hoje (ou fim do mês atual)
+            if (bucket.lastDate <= hoje || (bucket.lastDate > hoje && bucket.lastDate.getMonth() === hoje.getMonth() && bucket.lastDate.getFullYear() === hoje.getFullYear())) {
+                dataRealizado.push(bucket.lastAccumulated);
+            } else {
+                dataRealizado.push(null);
+            }
+
+            tooltips.push(bucket.periodValue);
+        });
+
+        // 5. Renderizar Gráfico
         burnupChartInstance = new Chart(ctx, {
             type: 'line',
             data: {
@@ -114,14 +140,14 @@ async function createBurnupChart(filteredData, metasData, startDateStr, endDateS
                     {
                         label: 'Realizado',
                         data: dataRealizado,
-                        borderColor: '#ff0000', // Vermelho V4
+                        borderColor: '#ff0000',
                         backgroundColor: 'rgba(255, 0, 0, 0.1)',
                         borderWidth: 3,
                         pointRadius: 4,
                         pointBackgroundColor: '#ff0000',
                         pointBorderColor: '#fff',
                         pointBorderWidth: 2,
-                        tension: 0.1, // Linha levemente curva ou reta (0)
+                        tension: 0.1,
                         fill: true
                     },
                     {
@@ -129,14 +155,14 @@ async function createBurnupChart(filteredData, metasData, startDateStr, endDateS
                         data: dataPace,
                         borderColor: '#666',
                         borderWidth: 2,
-                        borderDash: [5, 5], // Tracejado
+                        borderDash: [5, 5],
                         pointRadius: 0,
                         fill: false
                     },
                     {
                         label: 'Meta',
                         data: dataMeta,
-                        borderColor: '#22c55e', // Verde
+                        borderColor: '#22c55e',
                         borderWidth: 2,
                         borderDash: [10, 5],
                         pointRadius: 0,
@@ -159,23 +185,30 @@ async function createBurnupChart(filteredData, metasData, startDateStr, endDateS
                         labels: { color: '#888', usePointStyle: true, boxWidth: 8 }
                     },
                     tooltip: {
-                        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                        backgroundColor: 'rgba(20, 20, 20, 0.95)', // Fundo escuro sólido
                         titleColor: '#fff',
+                        titleFont: { size: 13, weight: 'bold' },
                         bodyColor: '#ccc',
+                        bodyFont: { size: 12 },
                         borderColor: '#333',
                         borderWidth: 1,
-                        padding: 10,
+                        padding: 12,
+                        boxPadding: 4,
+                        usePointStyle: true, // Bolinhas coloridas em vez de quadrados
                         callbacks: {
-                            title: (items) => `Dia ${items[0].label}`,
+                            title: (items) => `Período: ${items[0].label}`,
                             label: (item) => {
+                                // Customização visual para limpar a leitura
                                 if (item.dataset.label === 'Realizado') {
-                                    const diaIdx = item.dataIndex;
-                                    const doDia = dailyCounts[diaIdx];
-                                    const pace = dataPace[diaIdx].toFixed(0);
+                                    const idx = item.dataIndex;
+                                    const valPeriodo = tooltips[idx];
+                                    const pace = dataPace[idx].toFixed(0);
+                                    
+                                    // Retorna array para quebra de linha automática limpa
                                     return [
-                                        `🔴 Realizadas no dia: ${doDia}`,
-                                        `Pace esperado: ${pace}`,
-                                        `Acumulado: ${item.raw}`
+                                        `Realizado (Total): ${item.raw}`,
+                                        `Neste Período: ${valPeriodo}`,
+                                        `Pace Esperado: ${pace}`
                                     ];
                                 }
                                 return `${item.dataset.label}: ${Math.round(item.raw)}`;
@@ -192,7 +225,7 @@ async function createBurnupChart(filteredData, metasData, startDateStr, endDateS
                         grid: { color: '#1f1f1f', borderDash: [2, 2] },
                         ticks: { color: '#666', font: { size: 10 } },
                         beginAtZero: true,
-                        suggestedMax: metaTotal * 1.1 // Um pouco acima da meta
+                        suggestedMax: metaTotal * 1.1
                     }
                 }
             }
