@@ -185,7 +185,7 @@ async function createBurnupChart(filteredData, metasData, startDateStr, endDateS
                         labels: { color: '#888', usePointStyle: true, boxWidth: 8 }
                     },
                     tooltip: {
-                        backgroundColor: 'rgba(20, 20, 20, 0.95)', // Fundo escuro sólido
+                        backgroundColor: 'rgba(20, 20, 20, 0.95)',
                         titleColor: '#fff',
                         titleFont: { size: 13, weight: 'bold' },
                         bodyColor: '#ccc',
@@ -194,17 +194,15 @@ async function createBurnupChart(filteredData, metasData, startDateStr, endDateS
                         borderWidth: 1,
                         padding: 12,
                         boxPadding: 4,
-                        usePointStyle: true, // Bolinhas coloridas em vez de quadrados
+                        usePointStyle: true,
                         callbacks: {
                             title: (items) => `Período: ${items[0].label}`,
                             label: (item) => {
-                                // Customização visual para limpar a leitura
                                 if (item.dataset.label === 'Realizado') {
                                     const idx = item.dataIndex;
                                     const valPeriodo = tooltips[idx];
                                     const pace = dataPace[idx].toFixed(0);
                                     
-                                    // Retorna array para quebra de linha automática limpa
                                     return [
                                         `Realizado (Total): ${item.raw}`,
                                         `Neste Período: ${valPeriodo}`,
