@@ -284,10 +284,10 @@ function renderFunnelData() {
     updateFunnelBar('venda', c.venda, maxVal);
     
     // LEGENDAS EXPLICATIVAS (PDF PG 2)
-    updateConversion('tentativa', c.prospect, c.tentativa, 'Prospect → Tent. Contato'); 
-    updateConversion('conectado', c.tentativa, c.conectado, 'Tent. Contato → Conectado');
-    updateConversion('reuniao', c.conectado, c.reuniao, 'Conectado → Reunião Agend.');
-    updateConversion('venda', c.reuniao, c.venda, 'Reunião Agend. → Realizada');
+    updateConversion('tentativa', c.prospect, c.tentativa); 
+    updateConversion('conectado', c.tentativa, c.conectado);
+    updateConversion('reuniao', c.conectado, c.reuniao);
+    updateConversion('venda', c.reuniao, c.venda);
     
     const globalConv = c.prospect > 0 ? (c.venda/c.prospect)*100 : 0;
     document.querySelector('[data-global-conversion]').textContent = globalConv.toFixed(1) + '%';
@@ -355,7 +355,7 @@ function renderChannelPerformance() {
             <div class="channel-bar-container">
                 <div class="channel-bar-track">
                     <div class="channel-bar-fill ${color}" style="width:${w}%">
-                        <span class="channel-bar-text">${cv.toFixed(1)}%</span>
+                        <span class="channel-bar-text" style="color: black;">${cv.toFixed(1)}%</span>
                     </div>
                 </div>
                 <div class="channel-stats">
@@ -502,7 +502,6 @@ function renderBantAnalysis() {
             if(!convEl.nextElementSibling?.classList.contains('metric-explanation')) {
                 const expEl = document.createElement('span');
                 expEl.className = 'metric-explanation';
-                expEl.textContent = 'Reunião Agend. → Realizada';
                 convEl.parentElement.appendChild(expEl);
             }
         }
