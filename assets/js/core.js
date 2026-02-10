@@ -24,6 +24,18 @@ function formatDateBr(dateString) {
     return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
 
+// Função para calcular dias úteis (PDF Pg 3: Pace não considerar finais de semana)
+function getBusinessDays(startDate, endDate) {
+    let count = 0;
+    const curDate = new Date(startDate.getTime());
+    while (curDate <= endDate) {
+        const dayOfWeek = curDate.getDay();
+        if(dayOfWeek !== 0 && dayOfWeek !== 6) count++;
+        curDate.setDate(curDate.getDate() + 1);
+    }
+    return count;
+}
+
 function initializeDateFilterComponent() {
     const display = document.getElementById('dateDisplay');
     const popover = document.getElementById('datePopover');

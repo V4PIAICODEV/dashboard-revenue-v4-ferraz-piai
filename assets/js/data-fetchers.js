@@ -10,20 +10,23 @@ const WEBHOOKS = {
     lastUpdate: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/last_update'
 };
 
-const DATA_CACHE = { metas: [], burnup: [], sdr: [], bant: [], channels: [], funnel: [], loss: [], lastUpdate: null };
+const DATA_CACHE = {
+    metas: [], burnup: [], sdr: [], bant: [], channels: [], funnel: [], loss: [], lastUpdate: null
+};
 
 async function loadAllData() {
     try {
         const responses = await Promise.all([
-            fetch(WEBHOOKS.metas).then(r=>r.json()).catch(()=>({data:[]})),
-            fetch(WEBHOOKS.executiveBurnup).then(r=>r.json()).catch(()=>({data:[]})),
-            fetch(WEBHOOKS.sdrPerformance).then(r=>r.json()).catch(()=>({data:[]})),
-            fetch(WEBHOOKS.bantAnalysis).then(r=>r.json()).catch(()=>({data:[]})),
-            fetch(WEBHOOKS.channelPerformance).then(r=>r.json()).catch(()=>({data:[]})),
-            fetch(WEBHOOKS.funnelData).then(r=>r.json()).catch(()=>({data:[]})),
-            fetch(WEBHOOKS.lossAnalysis).then(r=>r.json()).catch(()=>({data:[]})),
-            fetch(WEBHOOKS.lastUpdate).then(r=>r.json()).catch(()=>({data:[]}))
+            fetch(WEBHOOKS.metas).then(r => r.json()).catch(() => ({ data: [] })),
+            fetch(WEBHOOKS.executiveBurnup).then(r => r.json()).catch(() => ({ data: [] })),
+            fetch(WEBHOOKS.sdrPerformance).then(r => r.json()).catch(() => ({ data: [] })),
+            fetch(WEBHOOKS.bantAnalysis).then(r => r.json()).catch(() => ({ data: [] })),
+            fetch(WEBHOOKS.channelPerformance).then(r => r.json()).catch(() => ({ data: [] })),
+            fetch(WEBHOOKS.funnelData).then(r => r.json()).catch(() => ({ data: [] })),
+            fetch(WEBHOOKS.lossAnalysis).then(r => r.json()).catch(() => ({ data: [] })),
+            fetch(WEBHOOKS.lastUpdate).then(r => r.json()).catch(() => ({ data: [] }))
         ]);
+
         DATA_CACHE.metas = getArr(responses[0]);
         DATA_CACHE.burnup = getArr(responses[1]);
         DATA_CACHE.sdr = getArr(responses[2]);
@@ -31,46 +34,92 @@ async function loadAllData() {
         DATA_CACHE.channels = getArr(responses[4]);
         DATA_CACHE.funnel = getArr(responses[5]);
         DATA_CACHE.loss = getArr(responses[6]);
+        
         const upd = getArr(responses[7]);
         if(upd.length) DATA_CACHE.lastUpdate = upd[0].data_hora_ultimo_update;
-        
+
+        // Limpeza preventiva
+        normalizeDataCache();
         populateDropdowns();
         renderAll();
+
     } catch (error) { console.error("Erro LoadData:", error); }
 }
 
 function getArr(json) { return Array.isArray(json) ? json : (json.data || []); }
-function renderAll() { renderLastUpdate(); renderExecutiveView(); renderSdrPerformance(); renderBantAnalysis(); renderChannelPerformance(); renderFunnelData(); renderLossAnalysis(); }
 
-function applyFilters(data, skipSdrCheck = false) {
+/**
+ * Normaliza dados para garantir integridade entre IDs e Nomes
+ */
+function normalizeDataCache() {
+    const nameToId = new Map();
+    const idToFullName = new Map();
+
+    const learnIdentity = (id, name) => {
+        if (!id || !name) return;
+        const cleanId = String(id).trim();
+        const cleanName = name.trim();
+        if (cleanId === '0' || cleanId === 'null') return; // Ignora ID 0 ou nulo no aprendizado
+
+        nameToId.set(cleanName.toLowerCase(), cleanId);
+        if (!idToFullName.has(cleanId) || cleanName.length > idToFullName.get(cleanId).length) {
+            idToFullName.set(cleanId, cleanName);
+        }
+    };
+
+    // Aprende identidades
+    DATA_CACHE.metas.forEach(i => learnIdentity(i.id, i.nome));
+    DATA_CACHE.sdr.forEach(i => learnIdentity(i.responsible_user_id, i.sdr_name));
+    
+    // Aplica correções
+    const patchItem = (item) => {
+        let currentId = item.responsible_user_id || item.sdr_id || item.id;
+        
+        if (currentId && String(currentId) !== '0') {
+            const strId = String(currentId).trim();
+            if (idToFullName.has(strId)) {
+                const officialName = idToFullName.get(strId);
+                if (item.sdr_name) item.sdr_name = officialName;
+                if (item.nome) item.nome = officialName;
+            }
+        }
+    };
+
+    DATA_CACHE.metas.forEach(patchItem);
+    DATA_CACHE.sdr.forEach(patchItem);
+    DATA_CACHE.channels.forEach(patchItem);
+}
+
+function renderAll() {
+    renderLastUpdate();
+    renderExecutiveView();
+    renderSdrPerformance();
+    renderBantAnalysis();
+    renderChannelPerformance();
+    renderFunnelData();
+    renderLossAnalysis();
+}
+
+function applyFilters(data) {
     if (!data || data.length === 0) return [];
+    
     const start = new Date(GlobalFilter.startDate + 'T00:00:00');
     const end = new Date(GlobalFilter.endDate + 'T23:59:59');
-    
+
     return data.filter(item => {
-        // Filtro Data
         if (item.data_referencia) {
             const d = new Date(item.data_referencia + 'T12:00:00');
             if (d < start || d > end) return false;
         }
         
-        // Filtro SDR (Se skipSdrCheck for true, ignora este bloco)
-        if (!skipSdrCheck && GlobalFilter.sdrId !== 'all') {
+        if (GlobalFilter.sdrId !== 'all') {
             const id = item.responsible_user_id || item.sdr_id || item.id;
+            // Se ID é 0 ou nulo, e estamos filtrando por alguém específico, remove.
+            if ((!id || String(id) === '0') && GlobalFilter.sdrId !== 'all') return false;
             
-            if (id) {
-                // Se tem ID, compara string com string
-                if (String(id) !== String(GlobalFilter.sdrId)) return false;
-            } else {
-                // Se NÃO tem ID nos dados (caso do Burnup), mas o filtro está ligado:
-                // Se o dado tiver nome do SDR, filtramos pelo nome? Não, melhor remover pois não pertence ao SDR selecionado.
-                // Mas se for o dataset de Burnup, ele nunca tem ID. O tratamento disso é feito no renderExecutiveView.
-                // Aqui, por segurança padrão, se não tem ID e estamos filtrando por SDR, removemos a linha.
-                if (item.sdr_name) return false; 
-            }
+            if (id && String(id) !== String(GlobalFilter.sdrId)) return false;
         }
         
-        // Filtro Canal
         if (GlobalFilter.channelId !== 'all') {
             const ch = item.canal_origem || item.canal_nome || 'Não identificado';
             if (ch !== GlobalFilter.channelId) return false;
@@ -82,47 +131,45 @@ function applyFilters(data, skipSdrCheck = false) {
 function populateDropdowns() {
     const sdrSelect = document.getElementById('sdrFilter');
     if (sdrSelect) {
-        while(sdrSelect.options.length > 1) sdrSelect.remove(1);
+        while (sdrSelect.options.length > 1) sdrSelect.remove(1);
         
-        // Usar Map para garantir unicidade pelo NOME
-        const uniqueNames = new Map();
+        const uniqueSDRs = new Map();
         
-        // 1. Prioridade: Metas (Nomes Oficiais)
-        DATA_CACHE.metas.forEach(i => {
-            if(i.nome && i.id) uniqueNames.set(i.nome.trim(), i.id);
-        });
-        
-        // 2. SDR Performance
-        DATA_CACHE.sdr.forEach(i => {
-            if(i.sdr_name && i.responsible_user_id) {
-                if (!uniqueNames.has(i.sdr_name.trim())) uniqueNames.set(i.sdr_name.trim(), i.responsible_user_id);
+        // Coleta apenas SDRs válidos (Ignora ID 0)
+        [...DATA_CACHE.metas, ...DATA_CACHE.sdr].forEach(i => {
+            const id = i.responsible_user_id || i.sdr_id || i.id;
+            const name = i.sdr_name || i.nome;
+            
+            if (id && name && String(id) !== '0') {
+                uniqueSDRs.set(String(id), name);
             }
         });
-        
-        // 3. BANT
-        DATA_CACHE.bant.forEach(i => {
-            const n = i.sdr_name; const id = i.responsible_user_id || i.sdr_id;
-            if(n && id && !uniqueNames.has(n.trim())) uniqueNames.set(n.trim(), id);
-        });
 
-        // Ordenar e Inserir
-        Array.from(uniqueNames.keys()).sort().forEach(name => {
-            const opt = document.createElement('option');
-            opt.value = uniqueNames.get(name);
-            opt.textContent = name;
-            sdrSelect.appendChild(opt);
-        });
+        Array.from(uniqueSDRs.entries())
+            .sort((a, b) => a[1].localeCompare(b[1]))
+            .forEach(([id, name]) => {
+                const opt = document.createElement('option');
+                opt.value = id;
+                opt.textContent = name;
+                sdrSelect.appendChild(opt);
+            });
     }
 
     const chSelect = document.getElementById('channelFilter');
     if (chSelect) {
-        while(chSelect.options.length > 1) chSelect.remove(1);
+        while (chSelect.options.length > 1) {
+            chSelect.remove(1);
+        }
         const unique = new Set();
-        [...DATA_CACHE.burnup, ...DATA_CACHE.channels].forEach(i => { 
+        [...DATA_CACHE.burnup, ...DATA_CACHE.channels].forEach(i => {
             const ch = i.canal_origem || i.canal_nome;
-            if(ch) unique.add(ch); 
+            if(ch) unique.add(ch);
         });
-        unique.forEach(ch => { const opt = document.createElement('option'); opt.value = ch; opt.textContent = ch; chSelect.appendChild(opt); });
+        unique.forEach(ch => {
+            const opt = document.createElement('option');
+            opt.value = ch; opt.textContent = ch;
+            chSelect.appendChild(opt);
+        });
     }
 }
 
@@ -135,56 +182,36 @@ function renderExecutiveView() {
     let aggData = [];
     let realizado = 0;
     
-    // Lógica principal de decisão da fonte de dados
+    // Sempre usa a view de burnup oficial, pois agora o SQL garante consistência
+    let sourceData = DATA_CACHE.burnup;
+    
+    // Se filtrar por SDR, usamos a view de canais como fallback de granularidade se necessário,
+    // mas idealmente a view de burnup já tem responsible_user_id correto agora.
     if (GlobalFilter.sdrId !== 'all') {
-        // --- CENÁRIO: SDR SELECIONADO ---
-        // O dataset 'burnup' original não serve pois não tem ID de SDR.
-        // Vamos construir o burnup usando o dataset 'channels' ou 'sdr' que tem datas e IDs.
-        
-        const sourceData = applyFilters(DATA_CACHE.channels); // Canais tem data_referencia e SDR
-        const dailyAgg = {};
-        
-        sourceData.forEach(item => {
-            const k = item.data_referencia;
-            // No dataset de canais, 'vendas' = Reuniões Realizadas
-            // 'reunioes' = Reuniões Agendadas
-            // Queremos Realizadas:
-            const qtd = parseInt(item.vendas) || 0;
-            if (k) {
-                if(!dailyAgg[k]) dailyAgg[k] = 0;
-                dailyAgg[k] += qtd;
-            }
-        });
-        
-        aggData = Object.keys(dailyAgg).map(k => ({
-            data_referencia: k,
-            qtd_realizada: dailyAgg[k]
-        })).sort((a,b) => new Date(a.data_referencia) - new Date(b.data_referencia));
-        
-        realizado = aggData.reduce((sum, i) => sum + i.qtd_realizada, 0);
-
-    } else {
-        // --- CENÁRIO: TODOS (GERAL) ---
-        // Usamos o dataset oficial de burnup
-        const filtered = applyFilters(DATA_CACHE.burnup);
-        const dailyAgg = {};
-        filtered.forEach(item => {
-            const k = item.data_referencia;
-            if(!dailyAgg[k]) dailyAgg[k] = 0;
-            dailyAgg[k] += parseInt(item.qtd_realizada) || 0;
-        });
-        aggData = Object.keys(dailyAgg).map(k => ({ 
-            data_referencia: k, 
-            qtd_realizada: dailyAgg[k] 
-        })).sort((a,b) => new Date(a.data_referencia) - new Date(b.data_referencia));
-        
-        realizado = aggData.reduce((sum, i) => sum + i.qtd_realizada, 0);
+        // Verifica se burnup tem o ID. Se a view SQL nova estiver rodando, terá.
+        const hasId = sourceData.some(i => i.responsible_user_id);
+        if(!hasId) sourceData = DATA_CACHE.channels; // Fallback se SQL não atualizou
     }
+
+    const filtered = applyFilters(sourceData);
+    const dailyAgg = {};
+    
+    filtered.forEach(item => {
+        const k = item.data_referencia;
+        // Se vier de canais, usa 'vendas', se vier de burnup, usa 'qtd_realizada'
+        const qtd = parseInt(item.qtd_realizada || item.vendas) || 0;
+        if (k) {
+            if(!dailyAgg[k]) dailyAgg[k] = 0;
+            dailyAgg[k] += qtd;
+        }
+    });
+    
+    aggData = Object.keys(dailyAgg).map(k => ({ data_referencia: k, qtd_realizada: dailyAgg[k] })).sort((a,b) => new Date(a.data_referencia) - new Date(b.data_referencia));
+    realizado = aggData.reduce((sum, i) => sum + i.qtd_realizada, 0);
 
     const start = new Date(GlobalFilter.startDate + 'T00:00:00');
     const end = new Date(GlobalFilter.endDate + 'T23:59:59');
     
-    // Cálculo da Meta
     let targetMetas = DATA_CACHE.metas;
     if (GlobalFilter.sdrId !== 'all') {
         targetMetas = targetMetas.filter(m => String(m.id) === String(GlobalFilter.sdrId));
@@ -194,23 +221,32 @@ function renderExecutiveView() {
     const meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
     const nomeMes = meses[end.getMonth()];
     
-    // Soma das metas (para o caso de múltiplas linhas)
     const metaMensal = targetMetas
         .filter(m => m.ano === targetYear && m.mes === nomeMes)
         .reduce((sum, m) => sum + (parseInt(m.valor)||0), 0);
     
-    const daysInMonth = new Date(targetYear, end.getMonth() + 1, 0).getDate();
-    const daysSelected = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+    // Dias Úteis
+    const firstDayOfMonth = new Date(targetYear, end.getMonth(), 1);
+    const lastDayOfMonth = new Date(targetYear, end.getMonth() + 1, 0);
     
-    // Meta Proporcional
-    let metaProp = 0;
-    if (daysSelected >= 28) {
-        metaProp = metaMensal;
-    } else if (daysInMonth > 0) {
-        metaProp = Math.round((metaMensal / daysInMonth) * daysSelected);
-    }
+    // Função local de dias úteis
+    const calcDays = (s, e) => {
+        let count = 0; const cur = new Date(s.getTime());
+        while (cur <= e) { const d = cur.getDay(); if(d!==0 && d!==6) count++; cur.setDate(cur.getDate()+1); }
+        return count;
+    };
+    // Tenta usar global se existir
+    const getDays = typeof getBusinessDays === 'function' ? getBusinessDays : calcDays;
 
-    // Atualização do DOM
+    const businessDaysInMonth = getDays(firstDayOfMonth, lastDayOfMonth);
+    const today = new Date();
+    const paceDateLimit = end < today ? end : today; 
+    const businessDaysPassed = getDays(firstDayOfMonth, paceDateLimit);
+    
+    let metaProp = 0;
+    if (businessDaysInMonth > 0) metaProp = Math.round((metaMensal / businessDaysInMonth) * businessDaysPassed);
+    if (end < today && end.getDate() === lastDayOfMonth.getDate()) metaProp = metaMensal;
+
     const elMeta = document.getElementById('metaMes'); if(elMeta) elMeta.textContent = metaProp;
     const elReal = document.getElementById('realizadoMes'); if(elReal) elReal.textContent = realizado;
     
@@ -221,7 +257,6 @@ function renderExecutiveView() {
     const elPace = document.getElementById('paceEsperado'); if(elPace) elPace.textContent = metaProp;
     const elFaltam = document.getElementById('faltamReuniaoes'); if(elFaltam) elFaltam.textContent = `faltam ${Math.max(0, metaProp - realizado)} reuniões`;
 
-    // Badges
     const elPaceBadge = document.getElementById('paceBadge');
     const elPaceDias = document.getElementById('paceDias');
     if (elPaceBadge && elPaceDias) {
@@ -232,23 +267,18 @@ function renderExecutiveView() {
         elPaceDias.textContent = `restam ${diasRestantes} dias no período`;
     }
     
-    // Atualiza barras de progresso
     const barAting = document.getElementById('atingimentoBar');
     if(barAting) barAting.style.width = Math.min(ating, 100) + '%';
     const barPace = document.getElementById('paceBar');
     if(barPace) {
-        // Pace visual simples: dia do mês / total dias
-        const hoje = new Date().getDate();
-        const pctMes = (hoje / daysInMonth) * 100;
+        const pctMes = (businessDaysPassed / businessDaysInMonth) * 100;
         barPace.style.width = Math.min(pctMes, 100) + '%';
     }
 
-    // Chama o gráfico com os dados corretos (aggData agora contém os dados filtrados ou reconstruídos)
     const granularity = document.getElementById('burnupGranularity')?.value || 'day';
     createBurnupChart(aggData, targetMetas, GlobalFilter.startDate, GlobalFilter.endDate, granularity);
 }
 
-// MANTENHA AS OUTRAS FUNÇÕES INALTERADAS ABAIXO
 function renderFunnelData() {
     const filtered = applyFilters(DATA_CACHE.funnel);
     const c = { prospect: 0, tentativa: 0, conectado: 0, reuniao: 0, venda: 0, sum_days: 0, count_days: 0 };
@@ -258,10 +288,13 @@ function renderFunnelData() {
         c.venda += parseInt(i.count_venda)||0; c.sum_days += parseFloat(i.sum_days_to_close)||0;
         c.count_days += parseInt(i.count_closed_with_days)||0;
     });
-    const max = c.prospect || 1;
-    updateFunnelBar('prospect', c.prospect, max); updateFunnelBar('tentativa', c.tentativa, max);
-    updateFunnelBar('conectado', c.conectado, max); updateFunnelBar('reuniao', c.reuniao, max);
-    updateFunnelBar('venda', c.venda, max);
+    
+    const maxVal = Math.max(c.prospect, c.tentativa, c.conectado, c.reuniao, c.venda) || 1;
+    
+    updateFunnelBar('prospect', c.prospect, maxVal); updateFunnelBar('tentativa', c.tentativa, maxVal);
+    updateFunnelBar('conectado', c.conectado, maxVal); updateFunnelBar('reuniao', c.reuniao, maxVal);
+    updateFunnelBar('venda', c.venda, maxVal);
+    
     updateConversion('tentativa', c.prospect, c.tentativa); updateConversion('conectado', c.tentativa, c.conectado);
     updateConversion('reuniao', c.conectado, c.reuniao); updateConversion('venda', c.reuniao, c.venda);
     
@@ -334,19 +367,32 @@ function renderSdrPerformance() {
     if(!tbody) return;
     const filtered = applyFilters(DATA_CACHE.sdr);
     const sdrMap = {};
+    
+    // Agregação de SDRs (Soma dados para evitar duplicatas visuais se houver erro no BD)
     filtered.forEach(i => {
         const id = i.responsible_user_id || i.sdr_name;
-        if(!sdrMap[id]) sdrMap[id] = { name: i.sdr_name, p:0, r:0, v:0 };
-        sdrMap[id].p += parseInt(i.prospects||0); sdrMap[id].r += parseInt(i.reunioes||0); sdrMap[id].v += parseInt(i.vendas||0);
+        // Chave única é o ID (se existir) ou nome
+        const key = i.responsible_user_id && String(i.responsible_user_id) !== '0' ? i.responsible_user_id : i.sdr_name;
+        
+        if(!sdrMap[key]) sdrMap[key] = { name: i.sdr_name, p:0, r:0, v:0 };
+        sdrMap[key].p += parseInt(i.prospects||0);
+        sdrMap[key].r += parseInt(i.reunioes||0);
+        sdrMap[key].v += parseInt(i.vendas||0);
+        
+        // Garante nome mais completo
+        if (i.sdr_name && i.sdr_name.length > sdrMap[key].name.length) {
+            sdrMap[key].name = i.sdr_name;
+        }
     });
+
     tbody.innerHTML = '';
     let c = {crit:0, warn:0, succ:0};
-    if(Object.keys(sdrMap).length === 0) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#888">Sem dados</td></tr>';
+    if(Object.keys(sdrMap).length === 0) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#888">Sem dados</td></tr>';
     else {
         Object.values(sdrMap).forEach(s => {
             const pa = s.p > 0 ? (s.r/s.p)*100 : 0; const ar = s.r > 0 ? (s.v/s.r)*100 : 0;
             let st='green'; if(pa<20 || ar<70) { st='red'; c.crit++; } else if(pa<40 || ar<90) { st='yellow'; c.warn++; } else c.succ++;
-            tbody.innerHTML += `<tr><td><span class="status-dot ${st}"></span></td><td class="sinaleiro-name">${s.name}</td><td>${s.p}</td><td>${s.r}</td><td><span class="badge ${getBadgeClassPA(pa)}">${pa.toFixed(1)}%</span></td><td>${s.v}</td><td><span class="badge ${getBadgeClassAR(ar)}">${ar.toFixed(1)}%</span></td></tr>`;
+            tbody.innerHTML += `<tr><td><span class="status-dot ${st}"></span></td><td class="sinaleiro-name">${s.name}</td><td>${s.p}</td><td>-</td><td>${s.r}</td><td><span class="badge ${getBadgeClassPA(pa)}">${pa.toFixed(1)}%</span></td><td>${s.v}</td><td><span class="badge ${getBadgeClassAR(ar)}">${ar.toFixed(1)}%</span></td></tr>`;
         });
     }
     document.getElementById('alert-critical').textContent = c.crit;
@@ -377,7 +423,7 @@ function renderBantAnalysis() {
         Object.keys(sdrAgg).forEach(s => {
             const d = sdrAgg[s];
             const p4 = (d.b4/d.t)*100, p3 = (d.b3/d.t)*100, p2 = (d.b2/d.t)*100, p1 = (d.b1/d.t)*100;
-            distBody.innerHTML += `<tr><td>${s}</td><td><span class="badge green">${d.b4}</span></td><td><span class="badge blue">${d.b3}</span></td><td><span class="badge yellow">${d.b2}</span></td><td><span class="badge red">${d.b1}</span></td><td>${d.t}</td><td><div class="bant-bar"><div class="bant-bar-segment b4" style="width:${p4}%"></div><div class="bant-bar-segment b3" style="width:${p3}%"></div><div class="bant-bar-segment b2" style="width:${p2}%"></div><div class="bant-bar-segment b1" style="width:${p1}%"></div></div></td></tr>`;
+            distBody.innerHTML += `<tr><td>${s}</td><td><span class="badge green">${d.b4}</span></td><td><span class="badge blue">${d.b3}</span></td><td><span class="badge yellow">${d.b2}</span></td><td><span class="badge red">${d.b1}</span></td><td>${d.t}</td><td><div class="bant-bar"><div class="bant-bar-segment b4" style="width:${p4}%" title="${d.b4} (${p4.toFixed(0)}%)"></div><div class="bant-bar-segment b3" style="width:${p3}%" title="${d.b3} (${p3.toFixed(0)}%)"></div><div class="bant-bar-segment b2" style="width:${p2}%" title="${d.b2} (${p2.toFixed(0)}%)"></div><div class="bant-bar-segment b1" style="width:${p1}%" title="${d.b1} (${p1.toFixed(0)}%)"></div></div></td></tr>`;
         });
     }
     convBody.innerHTML = '';

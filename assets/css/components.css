@@ -76,35 +76,46 @@ span.flatpickr-weekday { background: transparent !important; color: #888 !import
 .flatpickr-prev-month:hover svg, .flatpickr-next-month:hover svg { fill: #ff0000 !important; }
 
 /* ================= COMPONENTES GERAIS ================= */
-.section-title { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 2px; margin: 30px 0 15px 0; padding-bottom: 10px; border-bottom: 1px solid #2a2a2a; display: flex; align-items: center; gap: 10px; }
-.section-title::before { content: ''; width: 4px; height: 16px; background: #ff0000; border-radius: 2px; }
+/* AUMENTO DA FONTE TÍTULOS (PDF PG 1) */
+.section-title { font-size: 14px; color: #ccc; text-transform: uppercase; letter-spacing: 2px; margin: 30px 0 15px 0; padding-bottom: 10px; border-bottom: 1px solid #2a2a2a; display: flex; align-items: center; gap: 10px; font-weight: 700; }
+.section-title::before { content: ''; width: 4px; height: 20px; background: #ff0000; border-radius: 2px; }
+
 .card { background: #141414; border: 1px solid #2a2a2a; border-radius: 6px; padding: 20px; }
-.card-title { font-size: 11px; color: #666; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px; font-weight: 600; }
-.meta-card { background: #141414; border: 1px solid #2a2a2a; border-radius: 6px; padding: 18px; position: relative; overflow: hidden; min-height: 110px; display: flex; flex-direction: column; justify-content: center; }
+/* AUMENTO DA FONTE CARD TITLE (PDF PG 1) */
+.card-title { font-size: 14px; color: #999; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px; font-weight: 700; }
+
+.meta-card { background: #141414; border: 1px solid #2a2a2a; border-radius: 6px; padding: 20px; position: relative; overflow: hidden; min-height: 120px; display: flex; flex-direction: column; justify-content: center; }
 .meta-card.highlight { border-color: #ff0000; border-width: 2px; }
-.meta-label { font-size: 10px; color: #666; text-transform: uppercase; position: absolute; top: 18px; left: 18px; }
-.meta-value { font-size: 32px; font-weight: 700; margin-top: 15px; }
+/* AUMENTO DA FONTE LABELS (PDF PG 1) */
+.meta-label { font-size: 12px; color: #888; text-transform: uppercase; position: absolute; top: 18px; left: 20px; font-weight: 600; }
+/* AUMENTO SIGNIFICATIVO KPI (PDF PG 1) */
+.meta-value { font-size: 48px; font-weight: 800; margin-top: 15px; line-height: 1.1; }
 .meta-value.red { color: #ff0000; }
 .meta-value.green { color: #22c55e; }
 .meta-value.yellow { color: #fbbf24; }
 .meta-value.white { color: #fff; }
-.meta-sub { font-size: 11px; color: #888; margin-top: 6px; }
+.meta-sub { font-size: 12px; color: #888; margin-top: 8px; }
+
 .meta-progress-bar { position: absolute; bottom: 0; left: 0; height: 4px; }
 .meta-progress-bar.green { background: #22c55e; }
 .meta-progress-bar.yellow { background: #fbbf24; }
 .meta-progress-bar.red { background: #ef4444; }
-.pace-badge { display: inline-flex; gap: 5px; padding: 3px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; margin-top: 6px; width: fit-content; }
+
+.pace-badge { display: inline-flex; gap: 5px; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; margin-top: 8px; width: fit-content; }
 .pace-badge.ahead { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
 .pace-badge.behind { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
 .status-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
 .status-dot.green { background: #22c55e; box-shadow: 0 0 8px rgba(34, 197, 94, 0.6); }
 .status-dot.yellow { background: #fbbf24; box-shadow: 0 0 8px rgba(251, 191, 36, 0.6); }
 .status-dot.red { background: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.6); }
+
 .badge { padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
 .badge.green { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
 .badge.yellow { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
 .badge.red { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
 .badge.blue { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+
 .burnup-container { height: 220px; width: 100%; } 
 .table-scroll { overflow-x: auto; }
 .filter-select-small { background: #0d0d0d; border: 1px solid #2a2a2a; color: #ccc; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; outline: none; margin-left: 5px; }
