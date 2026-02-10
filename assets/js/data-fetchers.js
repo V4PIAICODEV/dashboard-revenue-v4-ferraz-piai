@@ -348,9 +348,23 @@ function renderChannelPerformance() {
     Object.keys(chStats).sort((a,b) => (chStats[b].v/chStats[b].l||0) - (chStats[a].v/chStats[a].l||0)).forEach(ch => {
         const s = chStats[ch]; const cv = s.l > 0 ? (s.v/s.l)*100 : 0;
         let color = cv >= 15 ? 'high' : (cv >= 8 ? 'medium' : 'very-low');
-        // CORREÇÃO: Proporção real das barras
-        const w = Math.min((cv/30)*100, 100);
-        eff.innerHTML += `<div class="channel-row"><span class="channel-name">${ch}</span><div class="channel-bar-container"><div class="channel-bar-track"><div class="channel-bar-fill ${color}" style="width:${w}%"></div></div><span class="channel-bar-text">${cv.toFixed(1)}%</span><div class="channel-stats"><span>Prospects: <span class="value">${s.l}</span></span><span>Agendadas: <span class="value">${s.r}</span></span><span>Realizadas: <span class="value">${s.v}</span></span></div></div></div>`;
+        // BARRA PROPORCIONAL A 100%
+        const w = Math.min(cv, 100);
+        eff.innerHTML += `<div class="channel-row">
+            <span class="channel-name">${ch}</span>
+            <div class="channel-bar-container">
+                <div class="channel-bar-track">
+                    <div class="channel-bar-fill ${color}" style="width:${w}%">
+                        <span class="channel-bar-text">${cv.toFixed(1)}%</span>
+                    </div>
+                </div>
+                <div class="channel-stats">
+                    <span>Prospects: <span class="value">${s.l}</span></span>
+                    <span>Agendadas: <span class="value">${s.r}</span></span>
+                    <span>Realizadas: <span class="value">${s.v}</span></span>
+                </div>
+            </div>
+        </div>`;
     });
 
     const sortedCh = Array.from(allCh).sort();
@@ -363,9 +377,9 @@ function renderChannelPerformance() {
             if(d && d.v > 0) {
                 const cv = d.l > 0 ? (d.v/d.l)*100 : 0;
                 const cl = cv >= 15 ? 'green' : (cv >= 8 ? 'yellow' : 'red');
-                // CORREÇÃO: Proporção real das mini-barras
-                const barWidth = Math.max(Math.min((cv/20)*40, 50),4);
-                html += `<td><div class="matrix-cell-content"><span class="mini-bar ${cl}" style="width:${barWidth}px"></span><span class="matrix-value">${d.v}</span><span class="matrix-perc">(${cv.toFixed(0)}%)</span></div></td>`;
+                // Mini-barra proporcional a 100%
+                const barWidth = Math.min(cv, 100);
+                html += `<td><div class="matrix-cell-content"><span class="mini-bar ${cl}" style="width:${barWidth}%"></span><span class="matrix-value">${d.v}</span><span class="matrix-perc">(${cv.toFixed(0)}%)</span></div></td>`;
             } else { 
                 html += `<td><div class="matrix-cell-content"><span class="status-dot red" style="width:6px;height:6px;box-shadow:none"></span><span class="matrix-value" style="color:#666">0</span><span class="matrix-perc">(0%)</span></div></td>`; 
             }
@@ -378,9 +392,20 @@ function renderSdrPerformance() {
     const tbody = document.getElementById('sinaleiro-body');
     if(!tbody) return;
     const filtered = applyFilters(DATA_CACHE.sdr);
-    const sdrMap = {};
+    const lossFiltered = applyFilters(DATA_CACHE.loss);
     
-    // PDF PG 3: Separar Prospects Totais vs Prospects do Mês
+    const sdrMap = {};
+    const sdrNoShow = {};
+    
+    // Calcular no-shows por SDR da view de perdas
+    lossFiltered.forEach(i => {
+        const sdr = i.sdr_name || 'Desc';
+        if(!sdrNoShow[sdr]) sdrNoShow[sdr] = {total: 0, real: 0, perd: 0};
+        sdrNoShow[sdr].total += parseInt(i.total_agendados)||0;
+        sdrNoShow[sdr].real += parseInt(i.qtd_realizadas)||0;
+        sdrNoShow[sdr].perd += parseInt(i.qtd_perdidas_143)||0;
+    });
+    
     const currentMonth = new Date().getMonth();
     const currentYear = new Date().getFullYear();
     
@@ -392,7 +417,6 @@ function renderSdrPerformance() {
         const prospects = parseInt(i.prospects||0);
         sdrMap[key].pTotal += prospects;
         
-        // Se a data_referencia é do mês atual, conta como "Prospects do Mês"
         if(i.data_referencia) {
             const dataRef = new Date(i.data_referencia);
             if(dataRef.getMonth() === currentMonth && dataRef.getFullYear() === currentYear) {
@@ -412,13 +436,17 @@ function renderSdrPerformance() {
     let c = {crit:0, warn:0, succ:0};
     
     if(Object.keys(sdrMap).length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#888">Sem dados</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#888">Sem dados</td></tr>';
     } else {
         Object.values(sdrMap).forEach(s => {
             const pa = s.pTotal > 0 ? (s.r/s.pTotal)*100 : 0; 
             const ar = s.r > 0 ? (s.v/s.r)*100 : 0;
-            let st='green'; 
             
+            // Calcular No-Show
+            const noshowData = sdrNoShow[s.name] || {total: 0, real: 0, perd: 0};
+            const noshow = noshowData.total - noshowData.real - noshowData.perd;
+            
+            let st='green'; 
             if(pa<20 || ar<70) { st='red'; c.crit++; } 
             else if(pa<40 || ar<90) { st='yellow'; c.warn++; } 
             else c.succ++;
@@ -432,6 +460,7 @@ function renderSdrPerformance() {
                 <td><span class="badge ${getBadgeClassPA(pa)}">${pa.toFixed(1)}%</span></td>
                 <td>${s.v}</td>
                 <td><span class="badge ${getBadgeClassAR(ar)}">${ar.toFixed(1)}%</span></td>
+                <td><span class="badge ${noshow >= 3 ? 'red' : (noshow >= 1 ? 'yellow' : 'green')}">${noshow}</span></td>
             </tr>`;
         });
     }
@@ -564,9 +593,9 @@ function renderLossAnalysis() {
         return; 
     }
     
-    // PDF PG 3: Tooltips com números absolutos
+    // BARRAS PROPORCIONAIS A 100%
     dataArr.sort((a,b)=>b.txPerda - a.txPerda).forEach(i => {
-        const w = Math.min(i.txPerda*3, 100); 
+        const w = Math.min(i.txPerda, 100); 
         const c = i.txPerda >= 20 ? 'high' : (i.txPerda >= 10 ? 'medium' : 'low');
         pContainer.innerHTML += `<div class="loss-bar-item">
             <span class="loss-bar-name">${i.ch}</span>
@@ -578,7 +607,7 @@ function renderLossAnalysis() {
     });
     
     dataArr.sort((a,b)=>b.txNoshow - a.txNoshow).forEach(i => {
-        const w = Math.min(i.txNoshow*3, 100); 
+        const w = Math.min(i.txNoshow, 100); 
         const c = i.txNoshow >= 20 ? 'high' : (i.txNoshow >= 10 ? 'medium' : 'low');
         nContainer.innerHTML += `<div class="loss-bar-item">
             <span class="loss-bar-name">${i.ch}</span>
