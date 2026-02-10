@@ -8,9 +8,9 @@
     color: #666;
     font-weight: 500;
     text-transform: uppercase;
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 0.5px;
-    padding: 10px 8px;
+    padding: 12px 8px;
     text-align: center;
     border-bottom: 1px solid #2a2a2a;
 }
@@ -20,8 +20,8 @@
 }
 
 .sinaleiro-table td {
-    padding: 12px 8px;
-    font-size: 12px;
+    padding: 14px 8px;
+    font-size: 13px;
     border-bottom: 1px solid #1f1f1f;
     color: #ccc;
     text-align: center;
@@ -51,7 +51,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 12px;
+    padding: 14px;
     border-radius: 6px;
     background: #1a1a1a;
 }
@@ -69,9 +69,9 @@
 }
 
 .alert-count {
-    font-size: 22px;
+    font-size: 26px;
     font-weight: 700;
-    min-width: 35px;
+    min-width: 40px;
 }
 
 .alert-count.red {
@@ -94,23 +94,24 @@
 .alert-text strong {
     color: #fff;
     display: block;
-    margin-bottom: 2px;
+    margin-bottom: 3px;
+    font-size: 12px;
 }
 
 /* BANT Styles */
 .bant-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    margin-bottom: 20px;
+    gap: 15px;
+    margin-bottom: 25px;
 }
 
 .bant-card {
     background: #1a1a1a;
     border-radius: 6px;
-    padding: 15px;
+    padding: 20px;
     text-align: center;
-    border: 1px solid #2a2a2a;
+    border: 2px solid #2a2a2a;
 }
 
 .bant-card.bant-4 {
@@ -130,16 +131,16 @@
 }
 
 .bant-label {
-    font-size: 10px;
+    font-size: 11px;
     color: #888;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
 
 .bant-value {
-    font-size: 28px;
+    font-size: 36px;
     font-weight: 700;
-    margin: 5px 0;
+    margin: 8px 0;
 }
 
 .bant-value.b4 {
@@ -159,7 +160,7 @@
 }
 
 .bant-conversion {
-    font-size: 11px;
+    font-size: 12px;
     color: #666;
 }
 
@@ -172,9 +173,9 @@
     color: #666;
     font-weight: 500;
     text-transform: uppercase;
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 0.5px;
-    padding: 10px 8px;
+    padding: 12px 8px;
     text-align: center;
     border-bottom: 1px solid #2a2a2a;
 }
@@ -184,8 +185,8 @@
 }
 
 .bant-table td {
-    padding: 10px 8px;
-    font-size: 12px;
+    padding: 12px 8px;
+    font-size: 13px;
     border-bottom: 1px solid #1f1f1f;
     color: #ccc;
     text-align: center;
@@ -203,8 +204,8 @@
 
 .bant-bar {
     display: flex;
-    height: 8px;
-    border-radius: 4px;
+    height: 10px;
+    border-radius: 5px;
     overflow: visible;
     background: #1a1a1a;
     position: relative;
@@ -219,13 +220,13 @@
 }
 
 .bant-bar-segment:first-child {
-    border-top-left-radius: 4px;
-    border-bottom-left-radius: 4px;
+    border-top-left-radius: 5px;
+    border-bottom-left-radius: 5px;
 }
 
 .bant-bar-segment:last-child {
-    border-top-right-radius: 4px;
-    border-bottom-right-radius: 4px;
+    border-top-right-radius: 5px;
+    border-bottom-right-radius: 5px;
 }
 
 .bant-bar-segment:hover {
@@ -255,13 +256,13 @@
     transform: translateX(-50%);
     background: #1f1f1f;
     color: #fff;
-    padding: 6px 10px;
+    padding: 8px 12px;
     border-radius: 4px;
     font-size: 11px;
     white-space: nowrap;
     opacity: 0;
     pointer-events: none;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
     border: 1px solid #333;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
     transition: opacity 0.2s;
@@ -289,76 +290,83 @@
     background: #ef4444;
 }
 
-/* Channel Styles */
+/* Channel Styles - % DENTRO DA BARRA, PROPORCIONAL A 100% */
 .channel-row {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 15px;
+    gap: 15px;
+    margin-bottom: 20px;
 }
 
 .channel-name {
-    font-size: 12px;
+    font-size: 13px;
     color: #ccc;
-    width: 80px;
+    width: 120px;
     flex-shrink: 0;
+    font-weight: 500;
 }
 
 .channel-bar-container {
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
 }
 
 .channel-bar-track {
-    height: 20px;
+    height: 32px;
     background: #1a1a1a;
     border-radius: 4px;
     overflow: hidden;
+    position: relative;
 }
 
+/* % DENTRO DA BARRA - PROPORCIONAL A 100% */
 .channel-bar-fill {
     height: 100%;
     border-radius: 4px;
     display: flex;
     align-items: center;
-    padding-left: 8px;
+    justify-content: center;
     transition: width 0.5s ease;
+    position: relative;
+    min-width: 35px;
 }
 
 .channel-bar-fill.high {
-    background: linear-gradient(90deg, #22c55e, #16a34a);
+    background: #22c55e;
 }
 
 .channel-bar-fill.medium {
-    background: linear-gradient(90deg, #3b82f6, #2563eb);
+    background: #3b82f6;
 }
 
 .channel-bar-fill.low {
-    background: linear-gradient(90deg, #fbbf24, #f59e0b);
+    background: #fbbf24;
 }
 
 .channel-bar-fill.very-low {
-    background: linear-gradient(90deg, #ef4444, #dc2626);
+    background: #ef4444;
 }
 
+/* TEXTO DENTRO DA BARRA */
 .channel-bar-text {
-    font-size: 10px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 700;
     color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
 }
 
 .channel-stats {
     display: flex;
     gap: 15px;
-    font-size: 10px;
+    font-size: 11px;
     color: #666;
 }
 
 .channel-stats .value {
     color: #ccc;
-    font-weight: 500;
+    font-weight: 600;
 }
 
 .channel-matrix {
@@ -370,9 +378,9 @@
     color: #666;
     font-weight: 500;
     text-transform: uppercase;
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 0.5px;
-    padding: 10px 6px;
+    padding: 12px 8px;
     text-align: center;
     border-bottom: 1px solid #2a2a2a;
 }
@@ -382,8 +390,8 @@
 }
 
 .channel-matrix td {
-    padding: 10px 6px;
-    font-size: 11px;
+    padding: 12px 8px;
+    font-size: 12px;
     border-bottom: 1px solid #1f1f1f;
     color: #ccc;
     text-align: center;
@@ -399,52 +407,111 @@
     background: #1a1a1a;
 }
 
-/* Funnel Styles */
+.matrix-cell-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+/* MINI-BARRA PROPORCIONAL A 100% DO CONTAINER */
+.mini-bar {
+    display: inline-block;
+    height: 8px;
+    border-radius: 4px;
+    min-width: 4px;
+    max-width: 100%;
+}
+
+.mini-bar.green { background: #22c55e; }
+.mini-bar.yellow { background: #fbbf24; }
+.mini-bar.red { background: #ef4444; }
+
+.matrix-value { font-weight: 600; color: #fff; font-size: 13px; }
+.matrix-perc { color: #666; font-size: 11px; }
+
+/* Funnel Styles - BARRAS VERMELHAS COM % DENTRO */
 .funnel-bar-row {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 6px;
+    gap: 15px;
+    margin-bottom: 12px;
 }
 
 .funnel-bar-label {
-    font-size: 10px;
-    color: #888;
-    width: 90px;
+    font-size: 12px;
+    color: #fff;
+    width: 120px;
     text-align: right;
     flex-shrink: 0;
+    font-weight: 500;
 }
 
 .funnel-bar-track {
     flex: 1;
-    height: 24px;
+    height: 32px;
     background: #1a1a1a;
     border-radius: 4px;
     overflow: hidden;
+    position: relative;
 }
 
+/* BARRA VERMELHA COM VALOR DENTRO */
 .funnel-bar-fill {
     height: 100%;
     background: linear-gradient(90deg, #ff0000, #cc0000);
     border-radius: 4px;
     display: flex;
     align-items: center;
-    justify-content: flex-end;
-    padding-right: 10px;
+    justify-content: center;
     transition: width 0.5s ease;
+    min-width: 35px;
 }
 
 .funnel-bar-value {
-    font-size: 11px;
-    font-weight: 600;
+    font-size: 13px;
+    font-weight: 700;
     color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
 }
 
+/* CONVERSÃO SÓ COM % EM BRANCO */
 .funnel-bar-conversion {
-    font-size: 10px;
-    color: #4ade80;
-    width: 50px;
+    font-size: 13px;
+    color: #fff;
+    width: 55px;
     text-align: right;
+    font-weight: 600;
+}
+
+.summary-box {
+    margin-top: 20px;
+    padding: 15px;
+    background: #1a1a1a;
+    border-radius: 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.summary-box .label {
+    font-size: 12px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.summary-box .value {
+    font-size: 20px;
+    font-weight: 700;
+    color: #22c55e;
+}
+
+.summary-box .meta {
+    font-size: 11px;
+    color: #666;
+    display: block;
+    margin-top: 5px;
 }
 
 /* Data Table */
@@ -457,22 +524,26 @@
     color: #666;
     font-weight: 500;
     text-transform: uppercase;
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 0.5px;
-    padding: 10px 8px;
+    padding: 12px 8px;
     text-align: left;
     border-bottom: 1px solid #2a2a2a;
 }
 
 .data-table td {
-    padding: 10px 8px;
-    font-size: 12px;
+    padding: 12px 8px;
+    font-size: 13px;
     border-bottom: 1px solid #1f1f1f;
     color: #ccc;
 }
 
 .data-table tr:hover {
     background: #1a1a1a;
+}
+
+.text-center {
+    text-align: center !important;
 }
 
 .value-green {
@@ -514,7 +585,7 @@
     background: #22c55e;
 }
 
-/* Loss Styles */
+/* Loss Styles - COM TOOLTIPS (PDF PG 3) */
 .loss-table {
     width: 100%;
     border-collapse: collapse;
@@ -524,9 +595,9 @@
     color: #666;
     font-weight: 500;
     text-transform: uppercase;
-    font-size: 9px;
+    font-size: 10px;
     letter-spacing: 0.5px;
-    padding: 10px;
+    padding: 12px;
     text-align: left;
     border-bottom: 1px solid #2a2a2a;
 }
@@ -537,8 +608,8 @@
 }
 
 .loss-table td {
-    padding: 10px;
-    font-size: 11px;
+    padding: 12px;
+    font-size: 12px;
     border-bottom: 1px solid #1f1f1f;
     color: #ccc;
     vertical-align: top;
@@ -548,7 +619,7 @@
     text-align: center;
     font-weight: 700;
     color: #ff0000;
-    font-size: 14px;
+    font-size: 15px;
 }
 
 .loss-table tr:hover {
@@ -558,12 +629,12 @@
 .loss-reason {
     color: #fff;
     font-weight: 500;
-    font-size: 12px;
+    font-size: 13px;
 }
 
 .loss-cause {
     color: #888;
-    font-size: 10px;
+    font-size: 11px;
     margin-top: 2px;
 }
 
@@ -574,34 +645,35 @@
 .loss-bar-item {
     display: flex;
     align-items: center;
-    margin-bottom: 12px;
+    margin-bottom: 15px;
+    gap: 12px;
 }
 
 .loss-bar-name {
-    font-size: 11px;
+    font-size: 12px;
     color: #ccc;
-    width: 70px;
+    width: 100px;
     flex-shrink: 0;
+    font-weight: 500;
 }
 
 .loss-bar-track {
     flex: 1;
-    height: 10px;
+    height: 12px;
     background: #1a1a1a;
-    border-radius: 5px;
-    margin: 0 10px;
+    border-radius: 6px;
     overflow: visible;
     position: relative;
 }
 
+/* CORREÇÃO PDF PG 3: Tooltip mostra números absolutos */
 .loss-bar-fill {
     height: 100%;
-    border-radius: 5px;
+    border-radius: 6px;
     cursor: pointer;
-    transition: opacity 0.2s;
+    transition: opacity 0.2s, width 0.5s ease;
     position: relative;
-    border-top-left-radius: 5px;
-    border-bottom-left-radius: 5px;
+    min-width: 4px;
 }
 
 .loss-bar-fill:hover {
@@ -631,13 +703,13 @@
     transform: translateX(-50%);
     background: #1f1f1f;
     color: #fff;
-    padding: 6px 10px;
+    padding: 8px 12px;
     border-radius: 4px;
     font-size: 11px;
     white-space: nowrap;
     opacity: 0;
     pointer-events: none;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
     border: 1px solid #333;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
     transition: opacity 0.2s;
@@ -662,161 +734,9 @@
 }
 
 .loss-bar-value {
-    font-size: 11px;
-    color: #888;
-    min-width: 30px;
-    text-align: right;
-}
-/* ... (Manter estilos anteriores) ... */
-
-/* --- CANAL: EFETIVIDADE (Estilo Visual image_2d871f.png) --- */
-.channel-row {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    margin-bottom: 25px; /* Espaço maior entre itens */
-}
-
-.channel-name {
-    font-size: 13px;
-    color: #ccc;
-    width: 110px; /* Mais largo para nomes */
-    flex-shrink: 0;
-}
-
-.channel-bar-container {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.channel-bar-track {
-    height: 26px; /* Barra robusta */
-    background: #1a1a1a;
-    border-radius: 4px;
-    overflow: hidden;
-}
-
-.channel-bar-fill {
-    height: 100%;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    padding-left: 10px;
-    transition: width 0.6s ease;
-}
-
-/* Cores Base */
-.channel-bar-fill.high { background: #22c55e; }
-.channel-bar-fill.medium { background: #eab308; }
-.channel-bar-fill.very-low { background: #ef4444; }
-
-.channel-bar-text {
-    font-size: 11px;
-    font-weight: 700;
-    color: #fff;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
-}
-
-/* Estatísticas abaixo da barra */
-.channel-stats {
-    display: flex;
-    gap: 15px;
-    font-size: 11px;
-    color: #666;
-    padding-left: 2px;
-}
-
-.channel-stats span {
-    color: #888;
-}
-
-.channel-stats .value {
-    color: #ccc;
-    font-weight: 600;
-    margin-left: 4px;
-}
-
-/* --- CANAL: MATRIZ (Estilo Visual 0ECEE911...) --- */
-.channel-matrix {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-}
-
-.channel-matrix th {
-    color: #666;
-    font-weight: 500;
-    text-transform: uppercase;
-    font-size: 10px;
-    letter-spacing: 0.5px;
-    padding: 15px 10px;
-    text-align: center;
-    border-bottom: 1px solid #2a2a2a;
-}
-
-.channel-matrix th:first-child { text-align: left; }
-
-.channel-matrix td {
-    padding: 15px 10px;
     font-size: 12px;
-    border-bottom: 1px solid #1f1f1f;
     color: #ccc;
-    text-align: center;
-    vertical-align: middle;
-}
-
-.channel-matrix td:first-child {
-    text-align: left;
-    color: #fff;
+    min-width: 45px;
+    text-align: right;
     font-weight: 600;
 }
-
-/* Conteúdo da Célula da Matriz */
-.matrix-cell-content {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-}
-
-.mini-bar {
-    display: inline-block;
-    height: 6px;
-    border-radius: 3px;
-    min-width: 4px;
-}
-
-.mini-bar.green { background: #22c55e; }
-.mini-bar.yellow { background: #eab308; }
-.mini-bar.red { background: #ef4444; }
-
-.matrix-value { font-weight: 600; color: #fff; }
-.matrix-perc { color: #666; font-size: 11px; }
-
-/* ... (código anterior) ... */
-
-/* Burnup Container */
-.burnup-container {
-    height: 220px; /* Aumentado ligeiramente para dar espaço */
-}
-
-/* Cabeçalho de Card com Controles (ex: Burnup) */
-.card-header-controls {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-}
-
-.card-header-controls .card-title {
-    margin-bottom: 0; /* Remove margem inferior padrão */
-}
-
-.granularity-control {
-    display: flex;
-    align-items: center;
-}
-
-/* ... (restante do código) ... */
