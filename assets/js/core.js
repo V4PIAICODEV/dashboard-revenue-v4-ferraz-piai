@@ -24,7 +24,7 @@ function formatDateBr(dateString) {
     return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
 
-// Função para calcular dias úteis (PDF Pg 3: Pace não considerar finais de semana)
+// PDF PG 3: Função para calcular dias úteis (não considerar finais de semana)
 function getBusinessDays(startDate, endDate) {
     let count = 0;
     const curDate = new Date(startDate.getTime());
@@ -47,7 +47,6 @@ function initializeDateFilterComponent() {
 
     if(!display) return;
 
-    // Configurar Flatpickr
     datePickerInstance = flatpickr("#inlineCalendar", {
         mode: "range",
         inline: true,
@@ -66,18 +65,15 @@ function initializeDateFilterComponent() {
         }
     });
 
-    // Padrão: Este Mês
     setPresetRange('month');
     updateDisplayLabel(); 
 
-    // Toggle Popover
     display.addEventListener('click', (e) => {
         e.stopPropagation();
         const isHidden = (window.getComputedStyle(popover).display === 'none');
         if (isHidden) {
             popover.style.display = 'flex';
             display.classList.add('active');
-            // Sync info label quando abre
             if (datePickerInstance && datePickerInstance.selectedDates.length > 0) {
                 const s = datePickerInstance.selectedDates[0];
                 const e2 = datePickerInstance.selectedDates[1] || s;
@@ -171,6 +167,5 @@ function updateDisplayLabel() {
     }
 }
 
-// Utils
 function getBadgeClassPA(val) { return val < 20 ? 'red' : (val < 40 ? 'yellow' : 'green'); }
 function getBadgeClassAR(val) { return val < 70 ? 'red' : (val < 90 ? 'yellow' : 'green'); }

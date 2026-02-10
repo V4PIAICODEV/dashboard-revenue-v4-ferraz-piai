@@ -2,11 +2,6 @@ let burnupChartInstance = null;
 
 /**
  * Cria/Atualiza o Gráfico de Burnup com suporte a granularidade
- * @param {Array} filteredData - Dados diários (aggData do data-fetchers)
- * @param {Array} metasData - Array de metas
- * @param {String} startDateStr - 'YYYY-MM-DD'
- * @param {String} endDateStr - 'YYYY-MM-DD'
- * @param {String} granularity - 'day', 'week', 'month', 'quarter', 'weekday'
  */
 async function createBurnupChart(filteredData, metasData, startDateStr, endDateStr, granularity = 'day') {
     try {
@@ -17,33 +12,27 @@ async function createBurnupChart(filteredData, metasData, startDateStr, endDateS
             burnupChartInstance.destroy();
         }
 
-        // 1. Setup inicial de datas
         const start = new Date(startDateStr + 'T00:00:00');
         const end = new Date(endDateStr + 'T23:59:59');
         
-        // Mapear dados existentes por dia (YYYY-MM-DD)
         const dailyMap = {};
         filteredData.forEach(item => {
             if (item.data_referencia) dailyMap[item.data_referencia] = parseInt(item.qtd_realizada) || 0;
         });
 
-        // 2. Determinar Meta Total (reutilizando lógica do DOM para consistência)
         const metaTotalDOM = parseInt(document.getElementById('metaMes')?.textContent || 0);
         const metaTotal = metaTotalDOM > 0 ? metaTotalDOM : 100;
 
-        // 3. Processar Agrupamento
         const labels = [];
         const dataRealizado = [];
         const dataPace = [];
         const dataMeta = [];
-        const tooltips = []; // Infos extras para tooltip
+        const tooltips = [];
 
-        // Variáveis de controle de iteração
         let curr = new Date(start);
         let acumuladoGlobal = 0;
-        let buckets = new Map(); // Chave -> { dateObj, value }
+        let buckets = new Map();
 
-        // Preencher dias vazios e calcular acumulado diário primeiro
         const allDays = [];
         while (curr <= end) {
             const dStr = curr.toISOString().split('T')[0];
@@ -59,7 +48,6 @@ async function createBurnupChart(filteredData, metasData, startDateStr, endDateS
             curr.setDate(curr.getDate() + 1);
         }
 
-        // Função auxiliar para gerar chaves de agrupamento
         const getGroupKey = (dateObj, type) => {
             const d = dateObj.getDate();
             const m = dateObj.getMonth();
@@ -82,7 +70,6 @@ async function createBurnupChart(filteredData, metasData, startDateStr, endDateS
             return d;
         };
 
-        // Agrupar dados
         allDays.forEach(dayInfo => {
             const key = getGroupKey(dayInfo.date, granularity);
             
@@ -100,7 +87,6 @@ async function createBurnupChart(filteredData, metasData, startDateStr, endDateS
             }
         });
 
-        // 4. Transformar Buckets em Arrays para o Chart
         let keysArr = Array.from(buckets.keys());
         
         if (granularity === 'weekday') {
@@ -121,7 +107,6 @@ async function createBurnupChart(filteredData, metasData, startDateStr, endDateS
             const paceVal = (metaTotal / totalBuckets) * (index + 1);
             dataPace.push(paceVal);
 
-            // Realizado só até hoje (ou fim do mês atual)
             if (bucket.lastDate <= hoje || (bucket.lastDate > hoje && bucket.lastDate.getMonth() === hoje.getMonth() && bucket.lastDate.getFullYear() === hoje.getFullYear())) {
                 dataRealizado.push(bucket.lastAccumulated);
             } else {
@@ -131,7 +116,6 @@ async function createBurnupChart(filteredData, metasData, startDateStr, endDateS
             tooltips.push(bucket.periodValue);
         });
 
-        // 5. Renderizar Gráfico
         burnupChartInstance = new Chart(ctx, {
             type: 'line',
             data: {
@@ -185,7 +169,7 @@ async function createBurnupChart(filteredData, metasData, startDateStr, endDateS
                         labels: { color: '#888', usePointStyle: true, boxWidth: 8 }
                     },
                     tooltip: {
-                        backgroundColor: 'rgba(20, 20, 20, 0.95)', // Fundo escuro sólido
+                        backgroundColor: 'rgba(20, 20, 20, 0.95)',
                         titleColor: '#fff',
                         titleFont: { size: 13, weight: 'bold' },
                         bodyColor: '#ccc',

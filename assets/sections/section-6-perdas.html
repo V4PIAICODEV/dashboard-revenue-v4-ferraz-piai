@@ -1,71 +1,41 @@
 <div class="section-title">Análise de Perdas</div>
-<div class="grid-2-1" style="display: none;">
-    <div class="card">
-        <div class="card-title">Ranking de Perdas (Fato, Causa, Ação)</div>
-        <table class="loss-table">
-            <thead>
-                <tr>
-                    <th>Qtd</th>
-                    <th>Motivo</th>
-                    <th>Ação Recomendada</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>34</td>
-                    <td>
-                        <div class="loss-reason">Sem resposta / Ghosting</div>
-                        <div class="loss-cause">Lead frio ou mal qualificado</div>
-                    </td>
-                    <td class="loss-action">Revisar critérios de qualificação</td>
-                </tr>
-                <tr>
-                    <td>28</td>
-                    <td>
-                        <div class="loss-reason">Preço / Orçamento</div>
-                        <div class="loss-cause">Desalinhamento de expectativa</div>
-                    </td>
-                    <td class="loss-action">Qualificar budget antes da reunião</td>
-                </tr>
-                <tr>
-                    <td>19</td>
-                    <td>
-                        <div class="loss-reason">Timing inadequado</div>
-                        <div class="loss-cause">Momento não é prioridade</div>
-                    </td>
-                    <td class="loss-action">Cadência de nutrição</td>
-                </tr>
-                <tr>
-                    <td>15</td>
-                    <td>
-                        <div class="loss-reason">Concorrência</div>
-                        <div class="loss-cause">Entrada tardia no processo</div>
-                    </td>
-                    <td class="loss-action">Acelerar primeiro contato</td>
-                </tr>
-                <tr>
-                    <td>12</td>
-                    <td>
-                        <div class="loss-reason">No-show na reunião</div>
-                        <div class="loss-cause">Baixo comprometimento</div>
-                    </td>
-                    <td class="loss-action">Confirmação 24h + lembrete 1h</td>
-                </tr>
-            </tbody>
-        </table>
+
+<div style="margin-bottom: 20px; padding: 15px; background: #1a1a1a; border-radius: 6px; border-left: 3px solid #ef4444;">
+    <div style="font-size: 11px; color: #888; line-height: 1.6;">
+        <strong style="color: #fff; display: block; margin-bottom: 6px;">Como interpretar as perdas:</strong>
+        <div style="margin-bottom: 4px;"><strong style="color: #ef4444;">Perdas:</strong> Reuniões que foram canceladas ou o lead rejeitou após agendamento</div>
+        <div><strong style="color: #fbbf24;">No-Show:</strong> Reuniões agendadas mas o cliente não compareceu</div>
+        <div style="margin-top: 8px; font-style: italic;">💡 Passe o mouse sobre as barras para ver números absolutos</div>
     </div>
 </div>
+
 <div class="grid-2">
     <div class="card">
         <div class="card-title">Percentual de Perdas por Canal</div>
         <div id="perdas-canal-container">
             <div style="text-align: center; color: #888; padding: 20px;">Carregando dados...</div>
         </div>
+        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #2a2a2a;">
+            <div style="font-size: 10px; color: #888; line-height: 1.5;">
+                <div style="margin-bottom: 3px;">🔴 <strong>Vermelho (≥20%):</strong> Atenção crítica</div>
+                <div style="margin-bottom: 3px;">🟡 <strong>Amarelo (10-20%):</strong> Monitorar</div>
+                <div>🟢 <strong>Verde (<10%):</strong> Dentro da meta</div>
+            </div>
+        </div>
     </div>
+    
     <div class="card">
         <div class="card-title">Percentual de No-Show por Canal</div>
         <div id="noshow-canal-container">
             <div style="text-align: center; color: #888; padding: 20px;">Carregando dados...</div>
+        </div>
+        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #2a2a2a;">
+            <div style="font-size: 10px; color: #888; line-height: 1.5;">
+                <strong style="color: #fff;">Ações recomendadas:</strong>
+                <div style="margin-top: 5px;">• Confirmação 24h antes da reunião</div>
+                <div>• Lembrete 1h antes via WhatsApp/Email</div>
+                <div>• Revisar qualificação do lead se recorrente</div>
+            </div>
         </div>
     </div>
 </div>

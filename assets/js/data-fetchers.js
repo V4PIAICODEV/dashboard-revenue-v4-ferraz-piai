@@ -38,7 +38,6 @@ async function loadAllData() {
         const upd = getArr(responses[7]);
         if(upd.length) DATA_CACHE.lastUpdate = upd[0].data_hora_ultimo_update;
 
-        // Limpeza preventiva
         normalizeDataCache();
         populateDropdowns();
         renderAll();
@@ -59,7 +58,7 @@ function normalizeDataCache() {
         if (!id || !name) return;
         const cleanId = String(id).trim();
         const cleanName = name.trim();
-        if (cleanId === '0' || cleanId === 'null') return; // Ignora ID 0 ou nulo no aprendizado
+        if (cleanId === '0' || cleanId === 'null') return;
 
         nameToId.set(cleanName.toLowerCase(), cleanId);
         if (!idToFullName.has(cleanId) || cleanName.length > idToFullName.get(cleanId).length) {
@@ -67,11 +66,9 @@ function normalizeDataCache() {
         }
     };
 
-    // Aprende identidades
     DATA_CACHE.metas.forEach(i => learnIdentity(i.id, i.nome));
     DATA_CACHE.sdr.forEach(i => learnIdentity(i.responsible_user_id, i.sdr_name));
     
-    // Aplica correções
     const patchItem = (item) => {
         let currentId = item.responsible_user_id || item.sdr_id || item.id;
         
@@ -114,9 +111,7 @@ function applyFilters(data) {
         
         if (GlobalFilter.sdrId !== 'all') {
             const id = item.responsible_user_id || item.sdr_id || item.id;
-            // Se ID é 0 ou nulo, e estamos filtrando por alguém específico, remove.
             if ((!id || String(id) === '0') && GlobalFilter.sdrId !== 'all') return false;
-            
             if (id && String(id) !== String(GlobalFilter.sdrId)) return false;
         }
         
@@ -135,7 +130,6 @@ function populateDropdowns() {
         
         const uniqueSDRs = new Map();
         
-        // Coleta apenas SDRs válidos (Ignora ID 0)
         [...DATA_CACHE.metas, ...DATA_CACHE.sdr].forEach(i => {
             const id = i.responsible_user_id || i.sdr_id || i.id;
             const name = i.sdr_name || i.nome;
@@ -182,15 +176,11 @@ function renderExecutiveView() {
     let aggData = [];
     let realizado = 0;
     
-    // Sempre usa a view de burnup oficial, pois agora o SQL garante consistência
     let sourceData = DATA_CACHE.burnup;
     
-    // Se filtrar por SDR, usamos a view de canais como fallback de granularidade se necessário,
-    // mas idealmente a view de burnup já tem responsible_user_id correto agora.
     if (GlobalFilter.sdrId !== 'all') {
-        // Verifica se burnup tem o ID. Se a view SQL nova estiver rodando, terá.
         const hasId = sourceData.some(i => i.responsible_user_id);
-        if(!hasId) sourceData = DATA_CACHE.channels; // Fallback se SQL não atualizou
+        if(!hasId) sourceData = DATA_CACHE.channels;
     }
 
     const filtered = applyFilters(sourceData);
@@ -198,7 +188,6 @@ function renderExecutiveView() {
     
     filtered.forEach(item => {
         const k = item.data_referencia;
-        // Se vier de canais, usa 'vendas', se vier de burnup, usa 'qtd_realizada'
         const qtd = parseInt(item.qtd_realizada || item.vendas) || 0;
         if (k) {
             if(!dailyAgg[k]) dailyAgg[k] = 0;
@@ -225,17 +214,14 @@ function renderExecutiveView() {
         .filter(m => m.ano === targetYear && m.mes === nomeMes)
         .reduce((sum, m) => sum + (parseInt(m.valor)||0), 0);
     
-    // Dias Úteis
     const firstDayOfMonth = new Date(targetYear, end.getMonth(), 1);
     const lastDayOfMonth = new Date(targetYear, end.getMonth() + 1, 0);
     
-    // Função local de dias úteis
     const calcDays = (s, e) => {
         let count = 0; const cur = new Date(s.getTime());
         while (cur <= e) { const d = cur.getDay(); if(d!==0 && d!==6) count++; cur.setDate(cur.getDate()+1); }
         return count;
     };
-    // Tenta usar global se existir
     const getDays = typeof getBusinessDays === 'function' ? getBusinessDays : calcDays;
 
     const businessDaysInMonth = getDays(firstDayOfMonth, lastDayOfMonth);
@@ -291,14 +277,21 @@ function renderFunnelData() {
     
     const maxVal = Math.max(c.prospect, c.tentativa, c.conectado, c.reuniao, c.venda) || 1;
     
-    updateFunnelBar('prospect', c.prospect, maxVal); updateFunnelBar('tentativa', c.tentativa, maxVal);
-    updateFunnelBar('conectado', c.conectado, maxVal); updateFunnelBar('reuniao', c.reuniao, maxVal);
+    updateFunnelBar('prospect', c.prospect, maxVal); 
+    updateFunnelBar('tentativa', c.tentativa, maxVal);
+    updateFunnelBar('conectado', c.conectado, maxVal); 
+    updateFunnelBar('reuniao', c.reuniao, maxVal);
     updateFunnelBar('venda', c.venda, maxVal);
     
-    updateConversion('tentativa', c.prospect, c.tentativa); updateConversion('conectado', c.tentativa, c.conectado);
-    updateConversion('reuniao', c.conectado, c.reuniao); updateConversion('venda', c.reuniao, c.venda);
+    // LEGENDAS EXPLICATIVAS (PDF PG 2)
+    updateConversion('tentativa', c.prospect, c.tentativa, 'Prospect → Tent. Contato'); 
+    updateConversion('conectado', c.tentativa, c.conectado, 'Tent. Contato → Conectado');
+    updateConversion('reuniao', c.conectado, c.reuniao, 'Conectado → Reunião Agend.');
+    updateConversion('venda', c.reuniao, c.venda, 'Reunião Agend. → Realizada');
     
-    document.querySelector('[data-global-conversion]').textContent = (c.prospect > 0 ? (c.venda/c.prospect)*100 : 0).toFixed(1) + '%';
+    const globalConv = c.prospect > 0 ? (c.venda/c.prospect)*100 : 0;
+    document.querySelector('[data-global-conversion]').textContent = globalConv.toFixed(1) + '%';
+    
     const elCiclo = document.querySelector('[data-cycle-days]');
     if(elCiclo) {
         const ciclo = c.count_days > 0 ? (c.sum_days/c.count_days) : 0;
@@ -309,10 +302,24 @@ function renderFunnelData() {
 
 function updateFunnelBar(s, v, m) {
     document.querySelector(`[data-value="${s}"]`).textContent = v;
-    document.querySelector(`[data-stage="${s}"]`).style.width = `${(v/m)*100}%`;
+    // CORREÇÃO: Proporção real, não 100% fixo
+    const percentage = (v/m)*100;
+    document.querySelector(`[data-stage="${s}"]`).style.width = `${percentage}%`;
 }
-function updateConversion(s, b, v) {
-    document.querySelector(`[data-conversion="${s}"]`).textContent = (b > 0 ? (v/b)*100 : 0).toFixed(1) + '%';
+
+function updateConversion(s, b, v, label) {
+    const convPerc = b > 0 ? (v/b)*100 : 0;
+    const convEl = document.querySelector(`[data-conversion="${s}"]`);
+    if(convEl) {
+        convEl.textContent = convPerc.toFixed(1) + '%';
+        // Adiciona legenda explicativa
+        if(label && !convEl.nextElementSibling?.classList.contains('conversion-label')) {
+            const labelEl = document.createElement('span');
+            labelEl.className = 'conversion-label';
+            labelEl.textContent = label;
+            convEl.parentElement.appendChild(labelEl);
+        }
+    }
 }
 
 function renderChannelPerformance() {
@@ -341,8 +348,9 @@ function renderChannelPerformance() {
     Object.keys(chStats).sort((a,b) => (chStats[b].v/chStats[b].l||0) - (chStats[a].v/chStats[a].l||0)).forEach(ch => {
         const s = chStats[ch]; const cv = s.l > 0 ? (s.v/s.l)*100 : 0;
         let color = cv >= 15 ? 'high' : (cv >= 8 ? 'medium' : 'very-low');
+        // CORREÇÃO: Proporção real das barras
         const w = Math.min((cv/30)*100, 100);
-        eff.innerHTML += `<div class="channel-row"><span class="channel-name">${ch}</span><div class="channel-bar-container"><div class="channel-bar-track"><div class="channel-bar-fill ${color}" style="width:${w}%"><span class="channel-bar-text">${cv.toFixed(1)}% conv.</span></div></div><div class="channel-stats"><span>Prospects: <span class="value">${s.l}</span></span><span>Agendadas: <span class="value">${s.r}</span></span><span>Realizadas: <span class="value">${s.v}</span></span></div></div></div>`;
+        eff.innerHTML += `<div class="channel-row"><span class="channel-name">${ch}</span><div class="channel-bar-container"><div class="channel-bar-track"><div class="channel-bar-fill ${color}" style="width:${w}%"></div></div><span class="channel-bar-text">${cv.toFixed(1)}%</span><div class="channel-stats"><span>Prospects: <span class="value">${s.l}</span></span><span>Agendadas: <span class="value">${s.r}</span></span><span>Realizadas: <span class="value">${s.v}</span></span></div></div></div>`;
     });
 
     const sortedCh = Array.from(allCh).sort();
@@ -355,8 +363,12 @@ function renderChannelPerformance() {
             if(d && d.v > 0) {
                 const cv = d.l > 0 ? (d.v/d.l)*100 : 0;
                 const cl = cv >= 15 ? 'green' : (cv >= 8 ? 'yellow' : 'red');
-                html += `<td><div class="matrix-cell-content"><span class="mini-bar ${cl}" style="width:${Math.max(Math.min((cv/20)*30, 40),4)}px"></span><span class="matrix-value">${d.v}</span><span class="matrix-perc">(${cv.toFixed(0)}%)</span></div></td>`;
-            } else { html += `<td><div class="matrix-cell-content"><span class="status-dot red" style="width:6px;height:6px;box-shadow:none"></span><span class="matrix-value" style="color:#666">0</span><span class="matrix-perc">(0%)</span></div></td>`; }
+                // CORREÇÃO: Proporção real das mini-barras
+                const barWidth = Math.max(Math.min((cv/20)*40, 50),4);
+                html += `<td><div class="matrix-cell-content"><span class="mini-bar ${cl}" style="width:${barWidth}px"></span><span class="matrix-value">${d.v}</span><span class="matrix-perc">(${cv.toFixed(0)}%)</span></div></td>`;
+            } else { 
+                html += `<td><div class="matrix-cell-content"><span class="status-dot red" style="width:6px;height:6px;box-shadow:none"></span><span class="matrix-value" style="color:#666">0</span><span class="matrix-perc">(0%)</span></div></td>`; 
+            }
         });
         tbody.innerHTML += html + '</tr>';
     });
@@ -368,18 +380,29 @@ function renderSdrPerformance() {
     const filtered = applyFilters(DATA_CACHE.sdr);
     const sdrMap = {};
     
-    // Agregação de SDRs (Soma dados para evitar duplicatas visuais se houver erro no BD)
+    // PDF PG 3: Separar Prospects Totais vs Prospects do Mês
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+    
     filtered.forEach(i => {
-        const id = i.responsible_user_id || i.sdr_name;
-        // Chave única é o ID (se existir) ou nome
         const key = i.responsible_user_id && String(i.responsible_user_id) !== '0' ? i.responsible_user_id : i.sdr_name;
         
-        if(!sdrMap[key]) sdrMap[key] = { name: i.sdr_name, p:0, r:0, v:0 };
-        sdrMap[key].p += parseInt(i.prospects||0);
+        if(!sdrMap[key]) sdrMap[key] = { name: i.sdr_name, pTotal:0, pMes:0, r:0, v:0 };
+        
+        const prospects = parseInt(i.prospects||0);
+        sdrMap[key].pTotal += prospects;
+        
+        // Se a data_referencia é do mês atual, conta como "Prospects do Mês"
+        if(i.data_referencia) {
+            const dataRef = new Date(i.data_referencia);
+            if(dataRef.getMonth() === currentMonth && dataRef.getFullYear() === currentYear) {
+                sdrMap[key].pMes += prospects;
+            }
+        }
+        
         sdrMap[key].r += parseInt(i.reunioes||0);
         sdrMap[key].v += parseInt(i.vendas||0);
         
-        // Garante nome mais completo
         if (i.sdr_name && i.sdr_name.length > sdrMap[key].name.length) {
             sdrMap[key].name = i.sdr_name;
         }
@@ -387,14 +410,32 @@ function renderSdrPerformance() {
 
     tbody.innerHTML = '';
     let c = {crit:0, warn:0, succ:0};
-    if(Object.keys(sdrMap).length === 0) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#888">Sem dados</td></tr>';
-    else {
+    
+    if(Object.keys(sdrMap).length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#888">Sem dados</td></tr>';
+    } else {
         Object.values(sdrMap).forEach(s => {
-            const pa = s.p > 0 ? (s.r/s.p)*100 : 0; const ar = s.r > 0 ? (s.v/s.r)*100 : 0;
-            let st='green'; if(pa<20 || ar<70) { st='red'; c.crit++; } else if(pa<40 || ar<90) { st='yellow'; c.warn++; } else c.succ++;
-            tbody.innerHTML += `<tr><td><span class="status-dot ${st}"></span></td><td class="sinaleiro-name">${s.name}</td><td>${s.p}</td><td>-</td><td>${s.r}</td><td><span class="badge ${getBadgeClassPA(pa)}">${pa.toFixed(1)}%</span></td><td>${s.v}</td><td><span class="badge ${getBadgeClassAR(ar)}">${ar.toFixed(1)}%</span></td></tr>`;
+            const pa = s.pTotal > 0 ? (s.r/s.pTotal)*100 : 0; 
+            const ar = s.r > 0 ? (s.v/s.r)*100 : 0;
+            let st='green'; 
+            
+            if(pa<20 || ar<70) { st='red'; c.crit++; } 
+            else if(pa<40 || ar<90) { st='yellow'; c.warn++; } 
+            else c.succ++;
+            
+            tbody.innerHTML += `<tr>
+                <td><span class="status-dot ${st}"></span></td>
+                <td class="sinaleiro-name">${s.name}</td>
+                <td>${s.pTotal}</td>
+                <td>${s.pMes}</td>
+                <td>${s.r}</td>
+                <td><span class="badge ${getBadgeClassPA(pa)}">${pa.toFixed(1)}%</span></td>
+                <td>${s.v}</td>
+                <td><span class="badge ${getBadgeClassAR(ar)}">${ar.toFixed(1)}%</span></td>
+            </tr>`;
         });
     }
+    
     document.getElementById('alert-critical').textContent = c.crit;
     document.getElementById('alert-warning').textContent = c.warn;
     document.getElementById('alert-success').textContent = c.succ;
@@ -406,32 +447,88 @@ function renderBantAnalysis() {
     const convBody = document.getElementById('bant-conversion-body');
     const bantMap = { 4:{l:0,v:0}, 3:{l:0,v:0}, 2:{l:0,v:0}, 1:{l:0,v:0} };
     const sdrAgg = {};
+    
     filtered.forEach(i => {
-        const sc = parseInt(i.bant_score)||1; const l = parseInt(i.total_leads)||0; const v = parseInt(i.vendas)||0;
+        const sc = parseInt(i.bant_score)||1; 
+        const l = parseInt(i.total_leads)||0; 
+        const v = parseInt(i.vendas)||0;
         if(bantMap[sc]) { bantMap[sc].l += l; bantMap[sc].v += v; }
         const sdr = i.sdr_name || 'Desc';
         if(!sdrAgg[sdr]) sdrAgg[sdr]={t:0, b4:0, b3:0, b2:0, b1:0};
-        sdrAgg[sdr].t += l; if(sc===4) sdrAgg[sdr].b4 += l; if(sc===3) sdrAgg[sdr].b3 += l; if(sc===2) sdrAgg[sdr].b2 += l; if(sc===1) sdrAgg[sdr].b1 += l;
+        sdrAgg[sdr].t += l; 
+        if(sc===4) sdrAgg[sdr].b4 += l; 
+        if(sc===3) sdrAgg[sdr].b3 += l; 
+        if(sc===2) sdrAgg[sdr].b2 += l; 
+        if(sc===1) sdrAgg[sdr].b1 += l;
     });
+    
     [4,3,2,1].forEach(i => {
-        const d = bantMap[i]; const cv = d.l > 0 ? (d.v/d.l)*100 : 0;
-        document.getElementById(`bant-val-${i}`).textContent = d.l; document.getElementById(`bant-conv-${i}`).textContent = cv.toFixed(1)+'%';
+        const d = bantMap[i]; 
+        const cv = d.l > 0 ? (d.v/d.l)*100 : 0;
+        document.getElementById(`bant-val-${i}`).textContent = d.l; 
+        const convEl = document.getElementById(`bant-conv-${i}`);
+        if(convEl) {
+            convEl.textContent = cv.toFixed(1)+'%';
+            // PDF PG 2: Adicionar legenda explicativa
+            if(!convEl.nextElementSibling?.classList.contains('metric-explanation')) {
+                const expEl = document.createElement('span');
+                expEl.className = 'metric-explanation';
+                expEl.textContent = 'Reunião Agend. → Realizada';
+                convEl.parentElement.appendChild(expEl);
+            }
+        }
     });
+    
     distBody.innerHTML = '';
-    if(!Object.keys(sdrAgg).length) distBody.innerHTML = '<tr><td colspan="7" style="text-align:center">Sem dados</td></tr>';
-    else {
+    if(!Object.keys(sdrAgg).length) {
+        distBody.innerHTML = '<tr><td colspan="7" style="text-align:center">Sem dados</td></tr>';
+    } else {
         Object.keys(sdrAgg).forEach(s => {
             const d = sdrAgg[s];
-            const p4 = (d.b4/d.t)*100, p3 = (d.b3/d.t)*100, p2 = (d.b2/d.t)*100, p1 = (d.b1/d.t)*100;
-            distBody.innerHTML += `<tr><td>${s}</td><td><span class="badge green">${d.b4}</span></td><td><span class="badge blue">${d.b3}</span></td><td><span class="badge yellow">${d.b2}</span></td><td><span class="badge red">${d.b1}</span></td><td>${d.t}</td><td><div class="bant-bar"><div class="bant-bar-segment b4" style="width:${p4}%" title="${d.b4} (${p4.toFixed(0)}%)"></div><div class="bant-bar-segment b3" style="width:${p3}%" title="${d.b3} (${p3.toFixed(0)}%)"></div><div class="bant-bar-segment b2" style="width:${p2}%" title="${d.b2} (${p2.toFixed(0)}%)"></div><div class="bant-bar-segment b1" style="width:${p1}%" title="${d.b1} (${p1.toFixed(0)}%)"></div></div></td></tr>`;
+            const p4 = d.t > 0 ? (d.b4/d.t)*100 : 0;
+            const p3 = d.t > 0 ? (d.b3/d.t)*100 : 0;
+            const p2 = d.t > 0 ? (d.b2/d.t)*100 : 0;
+            const p1 = d.t > 0 ? (d.b1/d.t)*100 : 0;
+            
+            // PDF PG 3: Tooltips com absoluto e percentual
+            distBody.innerHTML += `<tr>
+                <td>${s}</td>
+                <td><span class="badge green">${d.b4}</span></td>
+                <td><span class="badge blue">${d.b3}</span></td>
+                <td><span class="badge yellow">${d.b2}</span></td>
+                <td><span class="badge red">${d.b1}</span></td>
+                <td>${d.t}</td>
+                <td>
+                    <div class="bant-bar">
+                        <div class="bant-bar-segment b4" style="width:${p4}%" data-tooltip="${d.b4} leads (${p4.toFixed(1)}%)"></div>
+                        <div class="bant-bar-segment b3" style="width:${p3}%" data-tooltip="${d.b3} leads (${p3.toFixed(1)}%)"></div>
+                        <div class="bant-bar-segment b2" style="width:${p2}%" data-tooltip="${d.b2} leads (${p2.toFixed(1)}%)"></div>
+                        <div class="bant-bar-segment b1" style="width:${p1}%" data-tooltip="${d.b1} leads (${p1.toFixed(1)}%)"></div>
+                    </div>
+                </td>
+            </tr>`;
         });
     }
+    
     convBody.innerHTML = '';
     const badges = {4:'green', 3:'blue', 2:'yellow', 1:'red'};
-    const insights = {4:'Alta', 3:'Média', 2:'Baixa', 1:'Crítica'};
+    const insights = {
+        4:'Alta qualificação - priorizar',
+        3:'Boa qualificação - trabalhar', 
+        2:'Qualificação média - nutrir',
+        1:'Baixa qualificação - reavaliar'
+    };
+    
     [4,3,2,1].forEach(sc => {
-        const d = bantMap[sc]; const cv = d.l > 0 ? (d.v/d.l)*100 : 0;
-        convBody.innerHTML += `<tr><td><span class="badge ${badges[sc]}">BANT ${sc}</span></td><td class="text-center">${d.l}</td><td class="text-center">${d.v}</td><td class="text-center value-green">${cv.toFixed(1)}%</td><td style="font-size:10px;color:#888">${insights[sc]}</td></tr>`;
+        const d = bantMap[sc]; 
+        const cv = d.l > 0 ? (d.v/d.l)*100 : 0;
+        convBody.innerHTML += `<tr>
+            <td><span class="badge ${badges[sc]}">BANT ${sc}</span></td>
+            <td class="text-center">${d.l}</td>
+            <td class="text-center">${d.v}</td>
+            <td class="text-center value-green">${cv.toFixed(1)}%</td>
+            <td style="font-size:10px;color:#888">${insights[sc]}</td>
+        </tr>`;
     });
 }
 
@@ -439,26 +536,56 @@ function renderLossAnalysis() {
     const pContainer = document.getElementById('perdas-canal-container');
     const nContainer = document.getElementById('noshow-canal-container');
     if(!pContainer) return;
+    
     const filtered = applyFilters(DATA_CACHE.loss);
     const lossMap = {};
+    
     filtered.forEach(i => {
         const ch = i.canal_nome || 'Desc';
         if(!lossMap[ch]) lossMap[ch] = {total:0, real:0, perd:0};
-        lossMap[ch].total += parseInt(i.total_agendados)||0; lossMap[ch].real += parseInt(i.qtd_realizadas)||0; lossMap[ch].perd += parseInt(i.qtd_perdidas_143)||0;
+        lossMap[ch].total += parseInt(i.total_agendados)||0; 
+        lossMap[ch].real += parseInt(i.qtd_realizadas)||0; 
+        lossMap[ch].perd += parseInt(i.qtd_perdidas_143)||0;
     });
+    
     const dataArr = Object.keys(lossMap).map(ch => {
-        const s = lossMap[ch]; const noshowCount = s.total - s.real - s.perd;
-        const txPerda = s.total > 0 ? (s.perd/s.total)*100 : 0; const txNoshow = s.total > 0 ? (noshowCount/s.total)*100 : 0;
-        return { ch, txPerda, txNoshow };
+        const s = lossMap[ch]; 
+        const noshowCount = s.total - s.real - s.perd;
+        const txPerda = s.total > 0 ? (s.perd/s.total)*100 : 0; 
+        const txNoshow = s.total > 0 ? (noshowCount/s.total)*100 : 0;
+        return { ch, txPerda, txNoshow, perdAbs: s.perd, noshowAbs: noshowCount, total: s.total };
     });
-    pContainer.innerHTML = ''; nContainer.innerHTML = '';
-    if(dataArr.length===0) { pContainer.innerHTML = nContainer.innerHTML = '<div style="text-align:center;color:#666">Sem dados</div>'; return; }
+    
+    pContainer.innerHTML = ''; 
+    nContainer.innerHTML = '';
+    
+    if(dataArr.length===0) { 
+        pContainer.innerHTML = nContainer.innerHTML = '<div style="text-align:center;color:#666">Sem dados</div>'; 
+        return; 
+    }
+    
+    // PDF PG 3: Tooltips com números absolutos
     dataArr.sort((a,b)=>b.txPerda - a.txPerda).forEach(i => {
-        const w = Math.min(i.txPerda*2, 100); const c = i.txPerda > 15 ? 'high' : 'low';
-        pContainer.innerHTML += `<div class="loss-bar-item"><span class="loss-bar-name">${i.ch}</span><div class="loss-bar-track"><div class="loss-bar-fill ${c}" style="width:${w}%"></div></div><span>${i.txPerda.toFixed(1)}%</span></div>`;
+        const w = Math.min(i.txPerda*3, 100); 
+        const c = i.txPerda >= 20 ? 'high' : (i.txPerda >= 10 ? 'medium' : 'low');
+        pContainer.innerHTML += `<div class="loss-bar-item">
+            <span class="loss-bar-name">${i.ch}</span>
+            <div class="loss-bar-track">
+                <div class="loss-bar-fill ${c}" style="width:${w}%" data-tooltip="${i.perdAbs} perdas de ${i.total} agendadas (${i.txPerda.toFixed(1)}%)"></div>
+            </div>
+            <span class="loss-bar-value">${i.txPerda.toFixed(1)}%</span>
+        </div>`;
     });
+    
     dataArr.sort((a,b)=>b.txNoshow - a.txNoshow).forEach(i => {
-        const w = Math.min(i.txNoshow*2, 100); const c = i.txNoshow > 15 ? 'high' : 'low';
-        nContainer.innerHTML += `<div class="loss-bar-item"><span class="loss-bar-name">${i.ch}</span><div class="loss-bar-track"><div class="loss-bar-fill ${c}" style="width:${w}%"></div></div><span>${i.txNoshow.toFixed(1)}%</span></div>`;
+        const w = Math.min(i.txNoshow*3, 100); 
+        const c = i.txNoshow >= 20 ? 'high' : (i.txNoshow >= 10 ? 'medium' : 'low');
+        nContainer.innerHTML += `<div class="loss-bar-item">
+            <span class="loss-bar-name">${i.ch}</span>
+            <div class="loss-bar-track">
+                <div class="loss-bar-fill ${c}" style="width:${w}%" data-tooltip="${i.noshowAbs} no-shows de ${i.total} agendadas (${i.txNoshow.toFixed(1)}%)"></div>
+            </div>
+            <span class="loss-bar-value">${i.txNoshow.toFixed(1)}%</span>
+        </div>`;
     });
 }

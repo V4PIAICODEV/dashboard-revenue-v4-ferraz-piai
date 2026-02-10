@@ -1,26 +1,38 @@
 <div class="section-title">Análise de Qualificação (BANT)</div>
+<div style="margin-bottom: 20px; padding: 15px; background: #1a1a1a; border-radius: 6px; border-left: 3px solid #3b82f6;">
+    <div style="font-size: 11px; color: #888; line-height: 1.6;">
+        <strong style="color: #fff; display: block; margin-bottom: 6px;">Como interpretar as conversões BANT:</strong>
+        <div>A <strong style="color: #4ade80;">conversão</strong> mostrada indica o percentual de leads que passaram da fase de <strong>Reunião Agendada</strong> para <strong>Reunião Realizada</strong> em cada nível de qualificação BANT.</div>
+    </div>
+</div>
+
 <div class="bant-grid">
     <div class="bant-card bant-4">
         <div class="bant-label">BANT 4</div>
         <div class="bant-value b4" id="bant-val-4">-</div>
         <div class="bant-conversion">Conv: <span style="color: #22c55e;" id="bant-conv-4">-%</span></div>
+        <div class="metric-explanation">Agendada → Realizada</div>
     </div>
     <div class="bant-card bant-3">
         <div class="bant-label">BANT 3</div>
         <div class="bant-value b3" id="bant-val-3">-</div>
         <div class="bant-conversion">Conv: <span style="color: #3b82f6;" id="bant-conv-3">-%</span></div>
+        <div class="metric-explanation">Agendada → Realizada</div>
     </div>
     <div class="bant-card bant-2">
         <div class="bant-label">BANT 2</div>
         <div class="bant-value b2" id="bant-val-2">-</div>
         <div class="bant-conversion">Conv: <span style="color: #fbbf24;" id="bant-conv-2">-%</span></div>
+        <div class="metric-explanation">Agendada → Realizada</div>
     </div>
     <div class="bant-card bant-1">
         <div class="bant-label">BANT 1</div>
         <div class="bant-value b1" id="bant-val-1">-</div>
         <div class="bant-conversion">Conv: <span style="color: #ef4444;" id="bant-conv-1">-%</span></div>
+        <div class="metric-explanation">Agendada → Realizada</div>
     </div>
 </div>
+
 <div class="grid-2">
     <div class="card">
         <div class="card-title">Distribuição BANT por SDR</div>
@@ -42,7 +54,11 @@
                 </tr>
             </tbody>
         </table>
+        <div style="margin-top: 12px; font-size: 10px; color: #666; font-style: italic;">
+            💡 Passe o mouse sobre as barras para ver detalhes (valor absoluto e percentual)
+        </div>
     </div>
+    
     <div class="card">
         <div class="card-title">Conversão para Venda por BANT</div>
         <div class="table-scroll">
@@ -53,7 +69,7 @@
                         <th class="text-center">Agendada</th>
                         <th class="text-center">Realizada</th>
                         <th class="text-center">Conversão</th>
-                        <th>Insight</th>
+                        <th>Recomendação</th>
                     </tr>
                 </thead>
                 <tbody id="bant-conversion-body">

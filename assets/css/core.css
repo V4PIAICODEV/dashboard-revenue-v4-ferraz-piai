@@ -27,6 +27,24 @@ body {
     gap: 20px;
 }
 
+/* Card Header com Controles */
+.card-header-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.card-header-controls .card-title {
+    margin-bottom: 0;
+}
+
+.granularity-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
 /* Responsive Breakpoints */
 @media (max-width: 1400px) {
     .grid-2,
@@ -39,5 +57,22 @@ body {
     .filters-container {
         flex-direction: column;
         align-items: flex-start;
+    }
+    
+    body {
+        padding: 15px;
+    }
+    
+    .header-title .v4,
+    .header-title .company {
+        font-size: 20px !important;
+    }
+    
+    .header-title .monitor {
+        font-size: 18px !important;
+    }
+    
+    .meta-value {
+        font-size: 42px !important;
     }
 }

@@ -1,41 +1,81 @@
 <div class="section-title">Funil de Pré-vendas</div>
+
+<div style="margin-bottom: 20px; padding: 15px; background: #1a1a1a; border-radius: 6px; border-left: 3px solid #ff0000;">
+    <div style="font-size: 11px; color: #888; line-height: 1.6;">
+        <strong style="color: #fff; display: block; margin-bottom: 6px;">Como interpretar as conversões do funil:</strong>
+        <div>As porcentagens ao lado de cada etapa representam a <strong style="color: #4ade80;">taxa de conversão</strong> entre a etapa anterior e a atual. Por exemplo, se "Tent. Contato" mostra 90%, significa que 90% dos prospects avançaram para esta etapa.</div>
+    </div>
+</div>
+
 <div class="grid-2">
     <div class="card">
         <div class="card-title">Visão do Funil</div>
-        <div class="funnel-bar-row"><span class="funnel-bar-label">Prospect</span>
+        <div class="funnel-bar-row">
+            <span class="funnel-bar-label">Prospect</span>
             <div class="funnel-bar-track">
-                <div class="funnel-bar-fill" data-stage="prospect" style="width: 100%;"><span class="funnel-bar-value" data-value="prospect">0</span></div>
-            </div><span class="funnel-bar-conversion" data-conversion="prospect">—</span>
+                <div class="funnel-bar-fill" data-stage="prospect" style="width: 100%;">
+                    <span class="funnel-bar-value" data-value="prospect">0</span>
+                </div>
+            </div>
+            <span class="funnel-bar-conversion" data-conversion="prospect">—</span>
         </div>
-        <div class="funnel-bar-row"><span class="funnel-bar-label">Tent. Contato</span>
+        
+        <div class="funnel-bar-row">
+            <span class="funnel-bar-label">Tent. Contato</span>
             <div class="funnel-bar-track">
-                <div class="funnel-bar-fill" data-stage="tentativa" style="width: 0%;"><span class="funnel-bar-value" data-value="tentativa">0</span></div>
-            </div><span class="funnel-bar-conversion" data-conversion="tentativa">0%</span>
+                <div class="funnel-bar-fill" data-stage="tentativa" style="width: 0%;">
+                    <span class="funnel-bar-value" data-value="tentativa">0</span>
+                </div>
+            </div>
+            <span class="funnel-bar-conversion" data-conversion="tentativa">0%</span>
         </div>
-        <div class="funnel-bar-row"><span class="funnel-bar-label">Conectado</span>
+        
+        <div class="funnel-bar-row">
+            <span class="funnel-bar-label">Conectado</span>
             <div class="funnel-bar-track">
-                <div class="funnel-bar-fill" data-stage="conectado" style="width: 0%;"><span class="funnel-bar-value" data-value="conectado">0</span></div>
-            </div><span class="funnel-bar-conversion" data-conversion="conectado">0%</span>
+                <div class="funnel-bar-fill" data-stage="conectado" style="width: 0%;">
+                    <span class="funnel-bar-value" data-value="conectado">0</span>
+                </div>
+            </div>
+            <span class="funnel-bar-conversion" data-conversion="conectado">0%</span>
         </div>
-        <div class="funnel-bar-row"><span class="funnel-bar-label">Reunião Agend.</span>
+        
+        <div class="funnel-bar-row">
+            <span class="funnel-bar-label">Reunião Agend.</span>
             <div class="funnel-bar-track">
-                <div class="funnel-bar-fill" data-stage="reuniao" style="width: 0%;"><span class="funnel-bar-value" data-value="reuniao">0</span></div>
-            </div><span class="funnel-bar-conversion" data-conversion="reuniao">0%</span>
+                <div class="funnel-bar-fill" data-stage="reuniao" style="width: 0%;">
+                    <span class="funnel-bar-value" data-value="reuniao">0</span>
+                </div>
+            </div>
+            <span class="funnel-bar-conversion" data-conversion="reuniao">0%</span>
         </div>
-        <div class="funnel-bar-row"><span class="funnel-bar-label">Reunião Realizada</span>
+        
+        <div class="funnel-bar-row">
+            <span class="funnel-bar-label">Reunião Realizada</span>
             <div class="funnel-bar-track">
-                <div class="funnel-bar-fill" data-stage="venda" style="width: 0%;"><span class="funnel-bar-value" data-value="venda">0</span></div>
-            </div><span class="funnel-bar-conversion" data-conversion="venda">0%</span>
+                <div class="funnel-bar-fill" data-stage="venda" style="width: 0%;">
+                    <span class="funnel-bar-value" data-value="venda">0</span>
+                </div>
+            </div>
+            <span class="funnel-bar-conversion" data-conversion="venda">0%</span>
         </div>
-        <div class="summary-box"><span class="label">Conversão Total (Prospect → Reunião Realizada)</span><span
-                class="value" data-global-conversion>0%</span></div>
+        
+        <div class="summary-box">
+            <div>
+                <span class="label">Conversão Total</span>
+                <div style="font-size: 10px; color: #666; margin-top: 2px;">(Prospect → Reunião Realizada)</div>
+            </div>
+            <span class="value" data-global-conversion>0%</span>
+        </div>
     </div>
+    
     <div class="card">
         <div class="card-title">Ciclo de Reunião Realizada</div>
-        <div class="summary-box" style="margin-top: 40px; text-align: center;">
-            <span class="label" style="font-size: 18px;">Ciclo Total Médio</span>
-            <span class="value" data-cycle-days style="font-size: 48px; font-weight: 700;">0 dias</span>
-            <span class="meta" style="font-size: 16px;">meta: < 5 dias</span>
+        <div class="summary-box" style="margin-top: 40px; text-align: center; flex-direction: column;">
+            <span class="label" style="font-size: 16px; text-align: center;">Ciclo Total Médio</span>
+            <div style="font-size: 10px; color: #666; margin-bottom: 10px;">(Tempo entre criação e reunião realizada)</div>
+            <span class="value" data-cycle-days style="font-size: 48px; font-weight: 700; text-align: center;">0 dias</span>
+            <span class="meta" style="font-size: 14px; color: #888; text-align: center; margin-top: 8px;">meta: ≤ 5 dias úteis</span>
         </div>
     </div>
 </div>
