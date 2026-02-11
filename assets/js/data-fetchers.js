@@ -5,7 +5,7 @@ const WEBHOOKS = {
     channelPerformance: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/view_performance_canais',
     funnelData: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/view_funil_vendas',
     lossAnalysis: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/view_perdas_por_canal',
-    metas: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/metas_prevendas',
+    metas: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/metas_prevendas', // NOVA URL ATUALIZADA
     executiveBurnup: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/view_executiva_burnup',
     lastUpdate: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/last_update'
 };
@@ -45,6 +45,9 @@ async function loadAllData() {
     } catch (error) { console.error("Erro LoadData:", error); }
 }
 
+/**
+ * Ajustado para reconhecer a nova estrutura encadeada de metas do N8N
+ */
 function getArr(json) { 
     if (Array.isArray(json)) {
         if (json.length > 0 && json[0].data && Array.isArray(json[0].data)) {
@@ -55,6 +58,9 @@ function getArr(json) {
     return json.data || []; 
 }
 
+/**
+ * Normaliza dados para garantir integridade entre IDs e Nomes
+ */
 function normalizeDataCache() {
     const nameToId = new Map();
     const idToFullName = new Map();
@@ -180,7 +186,6 @@ function renderLastUpdate() {
 
 function renderExecutiveView() {
     let aggData = [];
-    
     let sourceData = DATA_CACHE.burnup;
     
     if (GlobalFilter.sdrId !== 'all') {
@@ -224,7 +229,7 @@ function renderExecutiveView() {
     const today = new Date();
     const paceDateLimit = end < today ? end : today;
 
-    // SOMA A META SOMENTE DAS DATAS INCLUSAS NO FILTRO
+    // LÓGICA ATUALIZADA: Conta a meta somente dentro do período de tempo do Filtro
     targetMetas.forEach(m => {
         const d = parseDateBR(m.data);
         if(d && d >= start && d <= end) {
@@ -250,7 +255,6 @@ function renderExecutiveView() {
     if (elPaceBadge && elPaceDias) {
         const diff = realizado - paceIdealPeriodo;
         elPaceBadge.className = diff >= 0 ? 'pace-badge ahead' : 'pace-badge behind';
-        // Utiliza Math.abs para não exibir "-4 atrasado" e sim "4 atrasado"
         elPaceBadge.textContent = diff >= 0 ? `+${diff} adiantado` : `${Math.abs(diff)} atrasado`; 
         const diasRestantes = Math.max(0, Math.ceil((end - new Date()) / (1000 * 60 * 60 * 24)));
         elPaceDias.textContent = `restam ${diasRestantes} dias no período`;
@@ -266,7 +270,9 @@ function renderExecutiveView() {
     }
 
     const granularity = document.getElementById('burnupGranularity')?.value || 'day';
-    createBurnupChart(aggData, targetMetas, GlobalFilter.startDate, GlobalFilter.endDate, granularity);
+    if (typeof createBurnupChart === 'function') {
+        createBurnupChart(aggData, targetMetas, GlobalFilter.startDate, GlobalFilter.endDate, granularity);
+    }
 }
 
 function renderFunnelData() {
@@ -350,13 +356,16 @@ function renderChannelPerformance() {
         const s = chStats[ch]; const cv = s.l > 0 ? (s.v/s.l)*100 : 0;
         let color = cv >= 15 ? 'high' : (cv >= 8 ? 'medium' : 'very-low');
         const w = Math.min(cv, 100);
-        eff.innerHTML += `<div class="channel-row">
+        
+        eff.innerHTML += `
+        <div class="channel-row">
             <span class="channel-name">${ch}</span>
             <div class="channel-bar-container">
-                <div class="channel-bar-track">
-                    <div class="channel-bar-fill ${color}" style="width:${w}%">
-                        <span class="channel-bar-text" style="color: black;">${cv.toFixed(1)}%</span>
+                <div class="channel-bar-wrapper">
+                    <div class="channel-bar-track">
+                        <div class="channel-bar-fill ${color}" style="width:${w}%"></div>
                     </div>
+                    <span class="channel-bar-conversion">${cv.toFixed(1)}%</span>
                 </div>
                 <div class="channel-stats">
                     <span>Prospects: <span class="value">${s.l}</span></span>
@@ -377,8 +386,8 @@ function renderChannelPerformance() {
             if(d && d.v > 0) {
                 const cv = d.l > 0 ? (d.v/d.l)*100 : 0;
                 const cl = cv >= 15 ? 'green' : (cv >= 8 ? 'yellow' : 'red');
-                const barWidth = Math.min(cv, 100);
-                html += `<td><div class="matrix-cell-content"><span class="mini-bar ${cl}" style="width:${barWidth}%"></span><span class="matrix-value">${d.v}</span><span class="matrix-perc">(${cv.toFixed(0)}%)</span></div></td>`;
+                const w = Math.min((cv/20)*30, 40);
+                html += `<td><div class="matrix-cell-content"><span class="mini-bar ${cl}" style="width:${Math.max(w,4)}px"></span><span class="matrix-value">${d.v}</span><span class="matrix-perc">(${cv.toFixed(0)}%)</span></div></td>`;
             } else { 
                 html += `<td><div class="matrix-cell-content"><span class="status-dot red" style="width:6px;height:6px;box-shadow:none"></span><span class="matrix-value" style="color:#666">0</span><span class="matrix-perc">(0%)</span></div></td>`; 
             }
