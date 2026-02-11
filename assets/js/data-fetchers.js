@@ -43,57 +43,40 @@ function getArr(json) {
     return json.data || []; 
 }
 
-/**
- * CORREÇÃO PRINCIPAL: Normalização inteligente de IDs e Nomes
- * Se uma linha vier sem ID (0 ou null) mas com nome, o sistema tenta preencher
- * usando o ID conhecido desse nome em outras linhas.
- */
 function normalizeDataCache() {
     const nameToId = new Map();
     const idToFullName = new Map();
 
-    // 1. Fase de Aprendizado: Mapear todos os Nomes <-> IDs válidos existentes
     const learnIdentity = (id, name) => {
         if (!name) return;
         const cleanName = String(name).trim();
         const cleanId = id && String(id) !== '0' && String(id) !== 'null' ? String(id).trim() : null;
         
-        if (cleanName) {
-            // Se tivermos um ID válido, associamos ao nome
-            if (cleanId) {
-                nameToId.set(cleanName.toLowerCase(), cleanId);
-                
-                // Guardamos a versão "mais completa" do nome para exibição
-                if (!idToFullName.has(cleanId) || cleanName.length > idToFullName.get(cleanId).length) {
-                    idToFullName.set(cleanId, cleanName);
-                }
+        if (cleanName && cleanId) {
+            nameToId.set(cleanName.toLowerCase(), cleanId);
+            if (!idToFullName.has(cleanId) || cleanName.length > idToFullName.get(cleanId).length) {
+                idToFullName.set(cleanId, cleanName);
             }
         }
     };
 
-    // Aprende com todas as fontes de dados
     DATA_CACHE.metas.forEach(i => learnIdentity(i['user id'] || i.id, i.user || i.nome));
     DATA_CACHE.unified.forEach(i => learnIdentity(i.sdr_id, i.sdr_name));
     
-    // 2. Fase de Correção: Preencher buracos e padronizar nomes
     const patchItem = (item) => {
-        // Tenta pegar o ID atual
         let currentId = item.sdr_id || item.responsible_user_id || item.id || item['user id'];
         let cleanId = currentId && String(currentId) !== '0' && String(currentId) !== 'null' ? String(currentId).trim() : null;
         
         const name = item.sdr_name || item.nome || item.user;
         
-        // CORREÇÃO: Se não tem ID, mas tem nome, tenta recuperar o ID pelo mapa aprendido
         if (!cleanId && name) {
             const foundId = nameToId.get(String(name).trim().toLowerCase());
             if (foundId) {
                 cleanId = foundId;
-                // Aplica o ID encontrado de volta ao item
                 if (item.sdr_id !== undefined || !item.hasOwnProperty('sdr_id')) item.sdr_id = foundId;
             }
         }
 
-        // Se agora temos um ID válido, padronizamos o nome para a versão oficial
         if (cleanId && idToFullName.has(cleanId)) {
             const officialName = idToFullName.get(cleanId);
             if (item.sdr_name !== undefined) item.sdr_name = officialName;
@@ -130,7 +113,6 @@ function applyFilters(data) {
         
         if (GlobalFilter.sdrId !== 'all') {
             const id = item.sdr_id || item.responsible_user_id || item.id || item['user id'];
-            // Verifica ID com conversão segura para string para evitar erros de tipo
             if ((!id || String(id) === '0') && GlobalFilter.sdrId !== 'all') return false;
             if (id && String(id) !== String(GlobalFilter.sdrId)) return false;
         }
@@ -154,7 +136,6 @@ function populateDropdowns() {
             const id = i.sdr_id || i['user id'] || i.id;
             const name = i.sdr_name || i.user || i.nome;
             
-            // Só adiciona se tiver ID e Nome válidos
             if (id && name && String(id) !== '0') {
                 uniqueSDRs.set(String(id), name);
             }
@@ -258,7 +239,6 @@ function renderExecutiveView() {
         elPaceBadge.className = diff >= 0 ? 'pace-badge ahead' : 'pace-badge behind';
         elPaceBadge.textContent = diff >= 0 ? `+${diff} adiantado` : `${Math.abs(diff)} atrasado`; 
         
-        // Lógica de dias úteis restantes baseada na planilha de metas
         const endOfToday = new Date();
         endOfToday.setHours(23, 59, 59, 999);
         const datasRestantesUnicas = new Set();
@@ -302,7 +282,6 @@ function renderSdrPerformance() {
     const sdrMap = {};
     
     DATA_CACHE.unified.forEach(i => {
-        // Filtragem manual robusta que considera IDs corrigidos
         if (GlobalFilter.sdrId !== 'all') {
             const id = i.sdr_id || i.responsible_user_id || i.id || i['user id'];
             if ((!id || String(id) === '0') && GlobalFilter.sdrId !== 'all') return;
@@ -317,7 +296,7 @@ function renderSdrPerformance() {
         const key = i.sdr_id && String(i.sdr_id) !== '0' ? i.sdr_id : i.sdr_name;
         if(!key) return;
 
-        if(!sdrMap[key]) sdrMap[key] = { name: i.sdr_name, pTotal:0, pMes:0, r:0, v:0, perd:0 };
+        if(!sdrMap[key]) sdrMap[key] = { name: i.sdr_name, pTotal:0, pMes:0, r:0, v:0, perd:0, ag_perd:0 };
         
         const prospects = parseInt(i.count_prospect)||0;
         let isDateInPeriod = false;
@@ -336,7 +315,10 @@ function renderSdrPerformance() {
             sdrMap[key].pTotal += prospects;
             sdrMap[key].r += parseInt(i.count_reuniao)||0;
             sdrMap[key].v += parseInt(i.count_venda_ganha)||0;
-            sdrMap[key].perd += parseInt(i.count_venda_perdida)||0;
+            // Para o cálculo do No-Show no Sinaleiro, mantemos a lógica antiga ou adaptamos se necessário
+            // O No-Show aqui é visualizado apenas como badge
+            // Usamos count_reuniao_perdida se disponível para precisão
+            sdrMap[key].ag_perd += parseInt(i.count_reuniao_perdida)||0;
         }
         
         if (i.sdr_name && (!sdrMap[key].name || i.sdr_name.length > sdrMap[key].name.length)) {
@@ -354,7 +336,10 @@ function renderSdrPerformance() {
             const pa = s.pTotal > 0 ? (s.r/s.pTotal)*100 : 0; 
             const ar = s.r > 0 ? (s.v/s.r)*100 : 0;
             
-            const noshow = s.r - s.v - s.perd;
+            // Se tivermos a coluna explicita de reuniao_perdida, usamos ela para o noshow
+            // Caso contrário, usamos a lógica dedutiva (Agendada - Realizada - PerdidaVenda)
+            // Assumindo que a count_reuniao_perdida é exatamente o No-Show/Cancelamento de agendamento
+            const noshow = s.ag_perd;
             
             let st='green'; 
             if(pa<20 || ar<70) { st='red'; c.crit++; } 
@@ -617,18 +602,37 @@ function renderLossAnalysis() {
     
     filtered.forEach(i => {
         const ch = i.canal_origem || 'Não identificado';
-        if(!lossMap[ch]) lossMap[ch] = {total:0, real:0, perd:0};
-        lossMap[ch].total += parseInt(i.count_reuniao)||0; 
-        lossMap[ch].real += parseInt(i.count_venda_ganha)||0; 
-        lossMap[ch].perd += parseInt(i.count_venda_perdida)||0;
+        if(!lossMap[ch]) lossMap[ch] = {
+            total_prospect: 0, 
+            total_reuniao: 0, 
+            perdida_venda: 0, 
+            perdida_reuniao: 0
+        };
+        
+        lossMap[ch].total_prospect += parseInt(i.count_prospect) || 0;
+        lossMap[ch].total_reuniao += parseInt(i.count_reuniao) || 0;
+        lossMap[ch].perdida_venda += parseInt(i.count_venda_perdida) || 0;
+        lossMap[ch].perdida_reuniao += parseInt(i.count_reuniao_perdida) || 0;
     });
     
     const dataArr = Object.keys(lossMap).map(ch => {
         const s = lossMap[ch]; 
-        const noshowCount = s.total - s.real - s.perd;
-        const txPerda = s.total > 0 ? (s.perd/s.total)*100 : 0; 
-        const txNoshow = s.total > 0 ? (noshowCount/s.total)*100 : 0;
-        return { ch, txPerda, txNoshow, perdAbs: s.perd, noshowAbs: noshowCount, total: s.total };
+        
+        // Percentual de Perdas por Canal: Vendas Perdidas / Total Prospects
+        const txPerda = s.total_prospect > 0 ? (s.perdida_venda / s.total_prospect) * 100 : 0;
+        
+        // Percentual de No-Show por Canal: Reunião Perdida / Reunião Agendada
+        const txNoshow = s.total_reuniao > 0 ? (s.perdida_reuniao / s.total_reuniao) * 100 : 0;
+
+        return { 
+            ch, 
+            txPerda, 
+            txNoshow, 
+            perdAbs: s.perdida_venda, 
+            noshowAbs: s.perdida_reuniao,
+            prospects: s.total_prospect,
+            reunioes: s.total_reuniao
+        };
     });
     
     pContainer.innerHTML = ''; 
@@ -645,7 +649,7 @@ function renderLossAnalysis() {
         pContainer.innerHTML += `<div class="loss-bar-item">
             <span class="loss-bar-name">${i.ch}</span>
             <div class="loss-bar-track">
-                <div class="loss-bar-fill ${c}" style="width:${w}%" data-tooltip="${i.perdAbs} perdas de ${i.total} agendadas (${i.txPerda.toFixed(1)}%)"></div>
+                <div class="loss-bar-fill ${c}" style="width:${w}%" data-tooltip="${i.perdAbs} perdas de ${i.prospects} prospects (${i.txPerda.toFixed(1)}%)"></div>
             </div>
             <span class="loss-bar-value">${i.txPerda.toFixed(1)}%</span>
         </div>`;
@@ -657,7 +661,7 @@ function renderLossAnalysis() {
         nContainer.innerHTML += `<div class="loss-bar-item">
             <span class="loss-bar-name">${i.ch}</span>
             <div class="loss-bar-track">
-                <div class="loss-bar-fill ${c}" style="width:${w}%" data-tooltip="${i.noshowAbs} no-shows de ${i.total} agendadas (${i.txNoshow.toFixed(1)}%)"></div>
+                <div class="loss-bar-fill ${c}" style="width:${w}%" data-tooltip="${i.noshowAbs} perdidas de ${i.reunioes} agendadas (${i.txNoshow.toFixed(1)}%)"></div>
             </div>
             <span class="loss-bar-value">${i.txNoshow.toFixed(1)}%</span>
         </div>`;
