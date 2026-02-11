@@ -43,36 +43,62 @@ function getArr(json) {
     return json.data || []; 
 }
 
+/**
+ * CORREÇÃO PRINCIPAL: Normalização inteligente de IDs e Nomes
+ * Se uma linha vier sem ID (0 ou null) mas com nome, o sistema tenta preencher
+ * usando o ID conhecido desse nome em outras linhas.
+ */
 function normalizeDataCache() {
     const nameToId = new Map();
     const idToFullName = new Map();
 
+    // 1. Fase de Aprendizado: Mapear todos os Nomes <-> IDs válidos existentes
     const learnIdentity = (id, name) => {
-        if (!id || !name) return;
-        const cleanId = String(id).trim();
+        if (!name) return;
         const cleanName = String(name).trim();
-        if (cleanId === '0' || cleanId === 'null') return;
-
-        nameToId.set(cleanName.toLowerCase(), cleanId);
-        if (!idToFullName.has(cleanId) || cleanName.length > idToFullName.get(cleanId).length) {
-            idToFullName.set(cleanId, cleanName);
+        const cleanId = id && String(id) !== '0' && String(id) !== 'null' ? String(id).trim() : null;
+        
+        if (cleanName) {
+            // Se tivermos um ID válido, associamos ao nome
+            if (cleanId) {
+                nameToId.set(cleanName.toLowerCase(), cleanId);
+                
+                // Guardamos a versão "mais completa" do nome para exibição
+                if (!idToFullName.has(cleanId) || cleanName.length > idToFullName.get(cleanId).length) {
+                    idToFullName.set(cleanId, cleanName);
+                }
+            }
         }
     };
 
+    // Aprende com todas as fontes de dados
     DATA_CACHE.metas.forEach(i => learnIdentity(i['user id'] || i.id, i.user || i.nome));
     DATA_CACHE.unified.forEach(i => learnIdentity(i.sdr_id, i.sdr_name));
     
+    // 2. Fase de Correção: Preencher buracos e padronizar nomes
     const patchItem = (item) => {
+        // Tenta pegar o ID atual
         let currentId = item.sdr_id || item.responsible_user_id || item.id || item['user id'];
+        let cleanId = currentId && String(currentId) !== '0' && String(currentId) !== 'null' ? String(currentId).trim() : null;
         
-        if (currentId && String(currentId) !== '0') {
-            const strId = String(currentId).trim();
-            if (idToFullName.has(strId)) {
-                const officialName = idToFullName.get(strId);
-                if (item.sdr_name !== undefined) item.sdr_name = officialName;
-                if (item.nome !== undefined) item.nome = officialName;
-                if (item.user !== undefined) item.user = officialName;
+        const name = item.sdr_name || item.nome || item.user;
+        
+        // CORREÇÃO: Se não tem ID, mas tem nome, tenta recuperar o ID pelo mapa aprendido
+        if (!cleanId && name) {
+            const foundId = nameToId.get(String(name).trim().toLowerCase());
+            if (foundId) {
+                cleanId = foundId;
+                // Aplica o ID encontrado de volta ao item
+                if (item.sdr_id !== undefined || !item.hasOwnProperty('sdr_id')) item.sdr_id = foundId;
             }
+        }
+
+        // Se agora temos um ID válido, padronizamos o nome para a versão oficial
+        if (cleanId && idToFullName.has(cleanId)) {
+            const officialName = idToFullName.get(cleanId);
+            if (item.sdr_name !== undefined) item.sdr_name = officialName;
+            if (item.nome !== undefined) item.nome = officialName;
+            if (item.user !== undefined) item.user = officialName;
         }
     };
 
@@ -104,6 +130,7 @@ function applyFilters(data) {
         
         if (GlobalFilter.sdrId !== 'all') {
             const id = item.sdr_id || item.responsible_user_id || item.id || item['user id'];
+            // Verifica ID com conversão segura para string para evitar erros de tipo
             if ((!id || String(id) === '0') && GlobalFilter.sdrId !== 'all') return false;
             if (id && String(id) !== String(GlobalFilter.sdrId)) return false;
         }
@@ -127,6 +154,7 @@ function populateDropdowns() {
             const id = i.sdr_id || i['user id'] || i.id;
             const name = i.sdr_name || i.user || i.nome;
             
+            // Só adiciona se tiver ID e Nome válidos
             if (id && name && String(id) !== '0') {
                 uniqueSDRs.set(String(id), name);
             }
@@ -230,14 +258,13 @@ function renderExecutiveView() {
         elPaceBadge.className = diff >= 0 ? 'pace-badge ahead' : 'pace-badge behind';
         elPaceBadge.textContent = diff >= 0 ? `+${diff} adiantado` : `${Math.abs(diff)} atrasado`; 
         
-        // --- NOVA LÓGICA DE DIAS ÚTEIS RESTANTES ---
+        // Lógica de dias úteis restantes baseada na planilha de metas
         const endOfToday = new Date();
         endOfToday.setHours(23, 59, 59, 999);
         const datasRestantesUnicas = new Set();
         
         targetMetas.forEach(m => {
             const d = parseDateBR(m.data);
-            // Conta as datas úteis da planilha que são MAIORES que hoje e menores ou iguais à data final do filtro
             if(d && d > endOfToday && d <= end) {
                 datasRestantesUnicas.add(m.data);
             }
@@ -275,6 +302,7 @@ function renderSdrPerformance() {
     const sdrMap = {};
     
     DATA_CACHE.unified.forEach(i => {
+        // Filtragem manual robusta que considera IDs corrigidos
         if (GlobalFilter.sdrId !== 'all') {
             const id = i.sdr_id || i.responsible_user_id || i.id || i['user id'];
             if ((!id || String(id) === '0') && GlobalFilter.sdrId !== 'all') return;
