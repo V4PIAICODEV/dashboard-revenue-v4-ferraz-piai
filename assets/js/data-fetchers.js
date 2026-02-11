@@ -5,7 +5,7 @@ const WEBHOOKS = {
     channelPerformance: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/view_performance_canais',
     funnelData: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/view_funil_vendas',
     lossAnalysis: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/view_perdas_por_canal',
-    metas: './api/metas.json',
+    metas: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/metas_prevendas',
     executiveBurnup: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/view_executiva_burnup',
     lastUpdate: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/last_update'
 };
@@ -45,11 +45,16 @@ async function loadAllData() {
     } catch (error) { console.error("Erro LoadData:", error); }
 }
 
-function getArr(json) { return Array.isArray(json) ? json : (json.data || []); }
+function getArr(json) { 
+    if (Array.isArray(json)) {
+        if (json.length > 0 && json[0].data && Array.isArray(json[0].data)) {
+            return json[0].data;
+        }
+        return json;
+    }
+    return json.data || []; 
+}
 
-/**
- * Normaliza dados para garantir integridade entre IDs e Nomes
- */
 function normalizeDataCache() {
     const nameToId = new Map();
     const idToFullName = new Map();
@@ -57,7 +62,7 @@ function normalizeDataCache() {
     const learnIdentity = (id, name) => {
         if (!id || !name) return;
         const cleanId = String(id).trim();
-        const cleanName = name.trim();
+        const cleanName = String(name).trim();
         if (cleanId === '0' || cleanId === 'null') return;
 
         nameToId.set(cleanName.toLowerCase(), cleanId);
@@ -66,18 +71,19 @@ function normalizeDataCache() {
         }
     };
 
-    DATA_CACHE.metas.forEach(i => learnIdentity(i.id, i.nome));
+    DATA_CACHE.metas.forEach(i => learnIdentity(i['user id'] || i.id, i.user || i.nome));
     DATA_CACHE.sdr.forEach(i => learnIdentity(i.responsible_user_id, i.sdr_name));
     
     const patchItem = (item) => {
-        let currentId = item.responsible_user_id || item.sdr_id || item.id;
+        let currentId = item.responsible_user_id || item.sdr_id || item.id || item['user id'];
         
         if (currentId && String(currentId) !== '0') {
             const strId = String(currentId).trim();
             if (idToFullName.has(strId)) {
                 const officialName = idToFullName.get(strId);
-                if (item.sdr_name) item.sdr_name = officialName;
-                if (item.nome) item.nome = officialName;
+                if (item.sdr_name !== undefined) item.sdr_name = officialName;
+                if (item.nome !== undefined) item.nome = officialName;
+                if (item.user !== undefined) item.user = officialName;
             }
         }
     };
@@ -110,7 +116,7 @@ function applyFilters(data) {
         }
         
         if (GlobalFilter.sdrId !== 'all') {
-            const id = item.responsible_user_id || item.sdr_id || item.id;
+            const id = item.responsible_user_id || item.sdr_id || item.id || item['user id'];
             if ((!id || String(id) === '0') && GlobalFilter.sdrId !== 'all') return false;
             if (id && String(id) !== String(GlobalFilter.sdrId)) return false;
         }
@@ -131,8 +137,8 @@ function populateDropdowns() {
         const uniqueSDRs = new Map();
         
         [...DATA_CACHE.metas, ...DATA_CACHE.sdr].forEach(i => {
-            const id = i.responsible_user_id || i.sdr_id || i.id;
-            const name = i.sdr_name || i.nome;
+            const id = i.responsible_user_id || i.sdr_id || i.id || i['user id'];
+            const name = i.sdr_name || i.nome || i.user;
             
             if (id && name && String(id) !== '0') {
                 uniqueSDRs.set(String(id), name);
@@ -174,7 +180,6 @@ function renderLastUpdate() {
 
 function renderExecutiveView() {
     let aggData = [];
-    let realizado = 0;
     
     let sourceData = DATA_CACHE.burnup;
     
@@ -196,68 +201,67 @@ function renderExecutiveView() {
     });
     
     aggData = Object.keys(dailyAgg).map(k => ({ data_referencia: k, qtd_realizada: dailyAgg[k] })).sort((a,b) => new Date(a.data_referencia) - new Date(b.data_referencia));
-    realizado = aggData.reduce((sum, i) => sum + i.qtd_realizada, 0);
+    const realizado = aggData.reduce((sum, i) => sum + i.qtd_realizada, 0);
 
     const start = new Date(GlobalFilter.startDate + 'T00:00:00');
     const end = new Date(GlobalFilter.endDate + 'T23:59:59');
     
     let targetMetas = DATA_CACHE.metas;
     if (GlobalFilter.sdrId !== 'all') {
-        targetMetas = targetMetas.filter(m => String(m.id) === String(GlobalFilter.sdrId));
+        targetMetas = targetMetas.filter(m => String(m['user id'] || m.id) === String(GlobalFilter.sdrId));
     }
     
-    const targetYear = end.getFullYear();
-    const meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-    const nomeMes = meses[end.getMonth()];
-    
-    const metaMensal = targetMetas
-        .filter(m => m.ano === targetYear && m.mes === nomeMes)
-        .reduce((sum, m) => sum + (parseInt(m.valor)||0), 0);
-    
-    const firstDayOfMonth = new Date(targetYear, end.getMonth(), 1);
-    const lastDayOfMonth = new Date(targetYear, end.getMonth() + 1, 0);
-    
-    const calcDays = (s, e) => {
-        let count = 0; const cur = new Date(s.getTime());
-        while (cur <= e) { const d = cur.getDay(); if(d!==0 && d!==6) count++; cur.setDate(cur.getDate()+1); }
-        return count;
+    const parseDateBR = (dateStr) => {
+        if(!dateStr) return null;
+        const parts = dateStr.split('/');
+        if(parts.length === 3) return new Date(`${parts[2]}-${parts[1]}-${parts[0]}T12:00:00`);
+        return null;
     };
-    const getDays = typeof getBusinessDays === 'function' ? getBusinessDays : calcDays;
 
-    const businessDaysInMonth = getDays(firstDayOfMonth, lastDayOfMonth);
-    const today = new Date();
-    const paceDateLimit = end < today ? end : today; 
-    const businessDaysPassed = getDays(firstDayOfMonth, paceDateLimit);
+    let metaPeriodo = 0;
+    let paceIdealPeriodo = 0;
     
-    let metaProp = 0;
-    if (businessDaysInMonth > 0) metaProp = Math.round((metaMensal / businessDaysInMonth) * businessDaysPassed);
-    if (end < today && end.getDate() === lastDayOfMonth.getDate()) metaProp = metaMensal;
+    const today = new Date();
+    const paceDateLimit = end < today ? end : today;
 
-    const elMeta = document.getElementById('metaMes'); if(elMeta) elMeta.textContent = metaProp;
+    // SOMA A META SOMENTE DAS DATAS INCLUSAS NO FILTRO
+    targetMetas.forEach(m => {
+        const d = parseDateBR(m.data);
+        if(d && d >= start && d <= end) {
+            metaPeriodo += parseInt(m['pace esperado']) || 0;
+        }
+        if(d && d >= start && d <= paceDateLimit) {
+            paceIdealPeriodo += parseInt(m['pace esperado']) || 0;
+        }
+    });
+
+    const elMeta = document.getElementById('metaMes'); if(elMeta) elMeta.textContent = metaPeriodo;
     const elReal = document.getElementById('realizadoMes'); if(elReal) elReal.textContent = realizado;
     
-    const ating = metaProp > 0 ? (realizado/metaProp)*100 : 0;
+    const ating = metaPeriodo > 0 ? (realizado/metaPeriodo)*100 : 0;
     const elPerc = document.getElementById('atingimentoPerc'); 
     if(elPerc) elPerc.textContent = ating.toFixed(1) + '%';
     
-    const elPace = document.getElementById('paceEsperado'); if(elPace) elPace.textContent = metaProp;
-    const elFaltam = document.getElementById('faltamReuniaoes'); if(elFaltam) elFaltam.textContent = `faltam ${Math.max(0, metaProp - realizado)} reuniões`;
+    const elPace = document.getElementById('paceEsperado'); if(elPace) elPace.textContent = paceIdealPeriodo;
+    const elFaltam = document.getElementById('faltamReuniaoes'); if(elFaltam) elFaltam.textContent = `faltam ${Math.max(0, metaPeriodo - realizado)} reuniões`;
 
     const elPaceBadge = document.getElementById('paceBadge');
     const elPaceDias = document.getElementById('paceDias');
     if (elPaceBadge && elPaceDias) {
-        const diff = realizado - metaProp;
+        const diff = realizado - paceIdealPeriodo;
         elPaceBadge.className = diff >= 0 ? 'pace-badge ahead' : 'pace-badge behind';
-        elPaceBadge.textContent = diff >= 0 ? `+${diff} adiantado` : `${diff} atrasado`;
+        // Utiliza Math.abs para não exibir "-4 atrasado" e sim "4 atrasado"
+        elPaceBadge.textContent = diff >= 0 ? `+${diff} adiantado` : `${Math.abs(diff)} atrasado`; 
         const diasRestantes = Math.max(0, Math.ceil((end - new Date()) / (1000 * 60 * 60 * 24)));
         elPaceDias.textContent = `restam ${diasRestantes} dias no período`;
     }
     
     const barAting = document.getElementById('atingimentoBar');
     if(barAting) barAting.style.width = Math.min(ating, 100) + '%';
+    
     const barPace = document.getElementById('paceBar');
     if(barPace) {
-        const pctMes = (businessDaysPassed / businessDaysInMonth) * 100;
+        const pctMes = metaPeriodo > 0 ? (paceIdealPeriodo / metaPeriodo) * 100 : 0;
         barPace.style.width = Math.min(pctMes, 100) + '%';
     }
 
@@ -283,7 +287,6 @@ function renderFunnelData() {
     updateFunnelBar('reuniao', c.reuniao, maxVal);
     updateFunnelBar('venda', c.venda, maxVal);
     
-    // LEGENDAS EXPLICATIVAS (PDF PG 2)
     updateConversion('tentativa', c.prospect, c.tentativa); 
     updateConversion('conectado', c.tentativa, c.conectado);
     updateConversion('reuniao', c.conectado, c.reuniao);
@@ -302,7 +305,6 @@ function renderFunnelData() {
 
 function updateFunnelBar(s, v, m) {
     document.querySelector(`[data-value="${s}"]`).textContent = v;
-    // CORREÇÃO: Proporção real, não 100% fixo
     const percentage = (v/m)*100;
     document.querySelector(`[data-stage="${s}"]`).style.width = `${percentage}%`;
 }
@@ -312,7 +314,6 @@ function updateConversion(s, b, v, label) {
     const convEl = document.querySelector(`[data-conversion="${s}"]`);
     if(convEl) {
         convEl.textContent = convPerc.toFixed(1) + '%';
-        // Adiciona legenda explicativa
         if(label && !convEl.nextElementSibling?.classList.contains('conversion-label')) {
             const labelEl = document.createElement('span');
             labelEl.className = 'conversion-label';
@@ -348,7 +349,6 @@ function renderChannelPerformance() {
     Object.keys(chStats).sort((a,b) => (chStats[b].v/chStats[b].l||0) - (chStats[a].v/chStats[a].l||0)).forEach(ch => {
         const s = chStats[ch]; const cv = s.l > 0 ? (s.v/s.l)*100 : 0;
         let color = cv >= 15 ? 'high' : (cv >= 8 ? 'medium' : 'very-low');
-        // BARRA PROPORCIONAL A 100%
         const w = Math.min(cv, 100);
         eff.innerHTML += `<div class="channel-row">
             <span class="channel-name">${ch}</span>
@@ -377,7 +377,6 @@ function renderChannelPerformance() {
             if(d && d.v > 0) {
                 const cv = d.l > 0 ? (d.v/d.l)*100 : 0;
                 const cl = cv >= 15 ? 'green' : (cv >= 8 ? 'yellow' : 'red');
-                // Mini-barra proporcional a 100%
                 const barWidth = Math.min(cv, 100);
                 html += `<td><div class="matrix-cell-content"><span class="mini-bar ${cl}" style="width:${barWidth}%"></span><span class="matrix-value">${d.v}</span><span class="matrix-perc">(${cv.toFixed(0)}%)</span></div></td>`;
             } else { 
@@ -397,7 +396,6 @@ function renderSdrPerformance() {
     const sdrMap = {};
     const sdrNoShow = {};
     
-    // Calcular no-shows por SDR da view de perdas
     lossFiltered.forEach(i => {
         const sdr = i.sdr_name || 'Desc';
         if(!sdrNoShow[sdr]) sdrNoShow[sdr] = {total: 0, real: 0, perd: 0};
@@ -442,7 +440,6 @@ function renderSdrPerformance() {
             const pa = s.pTotal > 0 ? (s.r/s.pTotal)*100 : 0; 
             const ar = s.r > 0 ? (s.v/s.r)*100 : 0;
             
-            // Calcular No-Show
             const noshowData = sdrNoShow[s.name] || {total: 0, real: 0, perd: 0};
             const noshow = noshowData.total - noshowData.real - noshowData.perd;
             
@@ -498,7 +495,6 @@ function renderBantAnalysis() {
         const convEl = document.getElementById(`bant-conv-${i}`);
         if(convEl) {
             convEl.textContent = cv.toFixed(1)+'%';
-            // PDF PG 2: Adicionar legenda explicativa
             if(!convEl.nextElementSibling?.classList.contains('metric-explanation')) {
                 const expEl = document.createElement('span');
                 expEl.className = 'metric-explanation';
@@ -518,7 +514,6 @@ function renderBantAnalysis() {
             const p2 = d.t > 0 ? (d.b2/d.t)*100 : 0;
             const p1 = d.t > 0 ? (d.b1/d.t)*100 : 0;
             
-            // PDF PG 3: Tooltips com absoluto e percentual
             distBody.innerHTML += `<tr>
                 <td>${s}</td>
                 <td><span class="badge green">${d.b4}</span></td>
@@ -592,7 +587,6 @@ function renderLossAnalysis() {
         return; 
     }
     
-    // BARRAS PROPORCIONAIS A 100%
     dataArr.sort((a,b)=>b.txPerda - a.txPerda).forEach(i => {
         const w = Math.min(i.txPerda, 100); 
         const c = i.txPerda >= 20 ? 'high' : (i.txPerda >= 10 ? 'medium' : 'low');

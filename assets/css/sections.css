@@ -290,7 +290,7 @@
     background: #ef4444;
 }
 
-/* Channel Styles - % DENTRO DA BARRA, PROPORCIONAL A 100% */
+/* Channel Styles */
 .channel-row {
     display: flex;
     align-items: center;
@@ -313,7 +313,16 @@
     gap: 6px;
 }
 
+/* WRAPPER PARA ALINHAR BARRA E PERCENTUAL EXTERNO */
+.channel-bar-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    width: 100%;
+}
+
 .channel-bar-track {
+    flex: 1;
     height: 32px;
     background: #1a1a1a;
     border-radius: 4px;
@@ -321,7 +330,6 @@
     position: relative;
 }
 
-/* % DENTRO DA BARRA - PROPORCIONAL A 100% */
 .channel-bar-fill {
     height: 100%;
     border-radius: 4px;
@@ -330,7 +338,7 @@
     justify-content: center;
     transition: width 0.5s ease;
     position: relative;
-    min-width: 35px;
+    min-width: 4px;
 }
 
 .channel-bar-fill.high {
@@ -349,12 +357,13 @@
     background: #ef4444;
 }
 
-/* TEXTO DENTRO DA BARRA */
-.channel-bar-text {
-    font-size: 12px;
-    font-weight: 700;
+/* TEXTO DE PERCENTUAL EXTERNO (Padronizado com Visão do Funil) */
+.channel-bar-conversion {
+    font-size: 13px;
     color: #fff;
-    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    width: 55px;
+    text-align: right;
+    font-weight: 600;
 }
 
 .channel-stats {
@@ -414,7 +423,6 @@
     gap: 8px;
 }
 
-/* MINI-BARRA PROPORCIONAL A 100% DO CONTAINER */
 .mini-bar {
     display: inline-block;
     height: 8px;
@@ -456,7 +464,6 @@
     position: relative;
 }
 
-/* BARRA VERMELHA COM VALOR DENTRO */
 .funnel-bar-fill {
     height: 100%;
     background: linear-gradient(90deg, #ff0000, #cc0000);
@@ -475,7 +482,6 @@
     text-shadow: 0 1px 2px rgba(0,0,0,0.5);
 }
 
-/* CONVERSÃO SÓ COM % EM BRANCO */
 .funnel-bar-conversion {
     font-size: 13px;
     color: #fff;
@@ -585,7 +591,7 @@
     background: #22c55e;
 }
 
-/* Loss Styles - COM TOOLTIPS (PDF PG 3) */
+/* Loss Styles */
 .loss-table {
     width: 100%;
     border-collapse: collapse;
@@ -666,7 +672,6 @@
     position: relative;
 }
 
-/* CORREÇÃO PDF PG 3: Tooltip mostra números absolutos */
 .loss-bar-fill {
     height: 100%;
     border-radius: 6px;

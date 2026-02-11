@@ -2,6 +2,11 @@ let burnupChartInstance = null;
 
 /**
  * Cria/Atualiza o Gráfico de Burnup com suporte a granularidade
+ * @param {Array} filteredData - Dados diários (aggData do data-fetchers)
+ * @param {Array} metasData - Array de metas filtradas
+ * @param {String} startDateStr - 'YYYY-MM-DD'
+ * @param {String} endDateStr - 'YYYY-MM-DD'
+ * @param {String} granularity - 'day', 'week', 'month', 'quarter', 'weekday'
  */
 async function createBurnupChart(filteredData, metasData, startDateStr, endDateStr, granularity = 'day') {
     try {
@@ -15,11 +20,26 @@ async function createBurnupChart(filteredData, metasData, startDateStr, endDateS
         const start = new Date(startDateStr + 'T00:00:00');
         const end = new Date(endDateStr + 'T23:59:59');
         
+        // Mapear dados do Realizado por dia
         const dailyMap = {};
         filteredData.forEach(item => {
             if (item.data_referencia) dailyMap[item.data_referencia] = parseInt(item.qtd_realizada) || 0;
         });
 
+        // Mapear Pace Diário baseado no Webhook de Metas
+        const paceMap = {};
+        metasData.forEach(m => {
+            if(m.data && m['pace esperado']) {
+                const parts = m.data.split('/');
+                if(parts.length === 3) {
+                    const isoDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+                    if(!paceMap[isoDate]) paceMap[isoDate] = 0;
+                    paceMap[isoDate] += parseInt(m['pace esperado']) || 0;
+                }
+            }
+        });
+
+        // A Meta Total é extraída do DOM, já calculada dinamicamente pelas datas do fetcher
         const metaTotalDOM = parseInt(document.getElementById('metaMes')?.textContent || 0);
         const metaTotal = metaTotalDOM > 0 ? metaTotalDOM : 100;
 
@@ -27,23 +47,28 @@ async function createBurnupChart(filteredData, metasData, startDateStr, endDateS
         const dataRealizado = [];
         const dataPace = [];
         const dataMeta = [];
-        const tooltips = [];
+        const tooltips = []; 
 
         let curr = new Date(start);
         let acumuladoGlobal = 0;
+        let acumuladoPace = 0;
         let buckets = new Map();
 
         const allDays = [];
         while (curr <= end) {
             const dStr = curr.toISOString().split('T')[0];
             const val = dailyMap[dStr] || 0;
+            const paceDay = paceMap[dStr] || 0;
+            
             acumuladoGlobal += val;
+            acumuladoPace += paceDay;
             
             allDays.push({
                 date: new Date(curr),
                 dateStr: dStr,
                 value: val,
-                acumulado: acumuladoGlobal
+                acumulado: acumuladoGlobal,
+                pace: acumuladoPace
             });
             curr.setDate(curr.getDate() + 1);
         }
@@ -76,12 +101,14 @@ async function createBurnupChart(filteredData, metasData, startDateStr, endDateS
             if (!buckets.has(key)) {
                 buckets.set(key, { 
                     lastAccumulated: dayInfo.acumulado,
+                    lastPace: dayInfo.pace,
                     periodValue: dayInfo.value, 
                     lastDate: dayInfo.date
                 });
             } else {
                 const b = buckets.get(key);
                 b.lastAccumulated = dayInfo.acumulado;
+                b.lastPace = dayInfo.pace;
                 b.periodValue += dayInfo.value;
                 b.lastDate = dayInfo.date;
             }
@@ -94,18 +121,17 @@ async function createBurnupChart(filteredData, metasData, startDateStr, endDateS
             keysArr.sort((a,b) => order.indexOf(a) - order.indexOf(b));
         }
 
-        const totalBuckets = keysArr.length;
         const hoje = new Date();
         hoje.setHours(0,0,0,0);
 
-        keysArr.forEach((key, index) => {
+        keysArr.forEach((key) => {
             labels.push(key);
             const bucket = buckets.get(key);
             
+            // A Linha da Meta é o valor final calculado para o Período, reta.
             dataMeta.push(metaTotal);
-
-            const paceVal = (metaTotal / totalBuckets) * (index + 1);
-            dataPace.push(paceVal);
+            // Injeta o Pace Acumulado calculado através do webhook
+            dataPace.push(bucket.lastPace); 
 
             if (bucket.lastDate <= hoje || (bucket.lastDate > hoje && bucket.lastDate.getMonth() === hoje.getMonth() && bucket.lastDate.getFullYear() === hoje.getFullYear())) {
                 dataRealizado.push(bucket.lastAccumulated);
@@ -185,7 +211,7 @@ async function createBurnupChart(filteredData, metasData, startDateStr, endDateS
                                 if (item.dataset.label === 'Realizado') {
                                     const idx = item.dataIndex;
                                     const valPeriodo = tooltips[idx];
-                                    const pace = dataPace[idx].toFixed(0);
+                                    const pace = dataPace[idx];
                                     
                                     return [
                                         `Realizado (Total): ${item.raw}`,
