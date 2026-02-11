@@ -1,41 +1,29 @@
 // URLs
 const WEBHOOKS = {
-    sdrPerformance: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/view_performance_sdr',
+    unifiedData: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/view_funil_vendas_acumulado', 
     bantAnalysis: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/analise-bant',
-    channelPerformance: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/view_performance_canais',
-    funnelData: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/view_funil_vendas',
-    lossAnalysis: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/view_perdas_por_canal',
-    metas: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/metas_prevendas', // NOVA URL ATUALIZADA
-    executiveBurnup: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/view_executiva_burnup',
+    metas: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/metas_prevendas',
     lastUpdate: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/last_update'
 };
 
 const DATA_CACHE = {
-    metas: [], burnup: [], sdr: [], bant: [], channels: [], funnel: [], loss: [], lastUpdate: null
+    unified: [], bant: [], metas: [], lastUpdate: null
 };
 
 async function loadAllData() {
     try {
         const responses = await Promise.all([
             fetch(WEBHOOKS.metas).then(r => r.json()).catch(() => ({ data: [] })),
-            fetch(WEBHOOKS.executiveBurnup).then(r => r.json()).catch(() => ({ data: [] })),
-            fetch(WEBHOOKS.sdrPerformance).then(r => r.json()).catch(() => ({ data: [] })),
+            fetch(WEBHOOKS.unifiedData).then(r => r.json()).catch(() => ({ data: [] })),
             fetch(WEBHOOKS.bantAnalysis).then(r => r.json()).catch(() => ({ data: [] })),
-            fetch(WEBHOOKS.channelPerformance).then(r => r.json()).catch(() => ({ data: [] })),
-            fetch(WEBHOOKS.funnelData).then(r => r.json()).catch(() => ({ data: [] })),
-            fetch(WEBHOOKS.lossAnalysis).then(r => r.json()).catch(() => ({ data: [] })),
             fetch(WEBHOOKS.lastUpdate).then(r => r.json()).catch(() => ({ data: [] }))
         ]);
 
         DATA_CACHE.metas = getArr(responses[0]);
-        DATA_CACHE.burnup = getArr(responses[1]);
-        DATA_CACHE.sdr = getArr(responses[2]);
-        DATA_CACHE.bant = getArr(responses[3]);
-        DATA_CACHE.channels = getArr(responses[4]);
-        DATA_CACHE.funnel = getArr(responses[5]);
-        DATA_CACHE.loss = getArr(responses[6]);
+        DATA_CACHE.unified = getArr(responses[1]);
+        DATA_CACHE.bant = getArr(responses[2]);
         
-        const upd = getArr(responses[7]);
+        const upd = getArr(responses[3]);
         if(upd.length) DATA_CACHE.lastUpdate = upd[0].data_hora_ultimo_update;
 
         normalizeDataCache();
@@ -45,9 +33,6 @@ async function loadAllData() {
     } catch (error) { console.error("Erro LoadData:", error); }
 }
 
-/**
- * Ajustado para reconhecer a nova estrutura encadeada de metas do N8N
- */
 function getArr(json) { 
     if (Array.isArray(json)) {
         if (json.length > 0 && json[0].data && Array.isArray(json[0].data)) {
@@ -58,9 +43,6 @@ function getArr(json) {
     return json.data || []; 
 }
 
-/**
- * Normaliza dados para garantir integridade entre IDs e Nomes
- */
 function normalizeDataCache() {
     const nameToId = new Map();
     const idToFullName = new Map();
@@ -78,10 +60,10 @@ function normalizeDataCache() {
     };
 
     DATA_CACHE.metas.forEach(i => learnIdentity(i['user id'] || i.id, i.user || i.nome));
-    DATA_CACHE.sdr.forEach(i => learnIdentity(i.responsible_user_id, i.sdr_name));
+    DATA_CACHE.unified.forEach(i => learnIdentity(i.sdr_id, i.sdr_name));
     
     const patchItem = (item) => {
-        let currentId = item.responsible_user_id || item.sdr_id || item.id || item['user id'];
+        let currentId = item.sdr_id || item.responsible_user_id || item.id || item['user id'];
         
         if (currentId && String(currentId) !== '0') {
             const strId = String(currentId).trim();
@@ -95,8 +77,7 @@ function normalizeDataCache() {
     };
 
     DATA_CACHE.metas.forEach(patchItem);
-    DATA_CACHE.sdr.forEach(patchItem);
-    DATA_CACHE.channels.forEach(patchItem);
+    DATA_CACHE.unified.forEach(patchItem);
 }
 
 function renderAll() {
@@ -122,7 +103,7 @@ function applyFilters(data) {
         }
         
         if (GlobalFilter.sdrId !== 'all') {
-            const id = item.responsible_user_id || item.sdr_id || item.id || item['user id'];
+            const id = item.sdr_id || item.responsible_user_id || item.id || item['user id'];
             if ((!id || String(id) === '0') && GlobalFilter.sdrId !== 'all') return false;
             if (id && String(id) !== String(GlobalFilter.sdrId)) return false;
         }
@@ -142,9 +123,9 @@ function populateDropdowns() {
         
         const uniqueSDRs = new Map();
         
-        [...DATA_CACHE.metas, ...DATA_CACHE.sdr].forEach(i => {
-            const id = i.responsible_user_id || i.sdr_id || i.id || i['user id'];
-            const name = i.sdr_name || i.nome || i.user;
+        [...DATA_CACHE.metas, ...DATA_CACHE.unified].forEach(i => {
+            const id = i.sdr_id || i['user id'] || i.id;
+            const name = i.sdr_name || i.user || i.nome;
             
             if (id && name && String(id) !== '0') {
                 uniqueSDRs.set(String(id), name);
@@ -163,14 +144,14 @@ function populateDropdowns() {
 
     const chSelect = document.getElementById('channelFilter');
     if (chSelect) {
-        while (chSelect.options.length > 1) {
-            chSelect.remove(1);
-        }
+        while (chSelect.options.length > 1) chSelect.remove(1);
+        
         const unique = new Set();
-        [...DATA_CACHE.burnup, ...DATA_CACHE.channels].forEach(i => {
-            const ch = i.canal_origem || i.canal_nome;
+        DATA_CACHE.unified.forEach(i => {
+            const ch = i.canal_origem;
             if(ch) unique.add(ch);
         });
+        
         unique.forEach(ch => {
             const opt = document.createElement('option');
             opt.value = ch; opt.textContent = ch;
@@ -185,27 +166,19 @@ function renderLastUpdate() {
 }
 
 function renderExecutiveView() {
-    let aggData = [];
-    let sourceData = DATA_CACHE.burnup;
-    
-    if (GlobalFilter.sdrId !== 'all') {
-        const hasId = sourceData.some(i => i.responsible_user_id);
-        if(!hasId) sourceData = DATA_CACHE.channels;
-    }
-
-    const filtered = applyFilters(sourceData);
+    const filtered = applyFilters(DATA_CACHE.unified);
     const dailyAgg = {};
     
     filtered.forEach(item => {
         const k = item.data_referencia;
-        const qtd = parseInt(item.qtd_realizada || item.vendas) || 0;
+        const qtd = parseInt(item.count_venda_ganha) || 0;
         if (k) {
             if(!dailyAgg[k]) dailyAgg[k] = 0;
             dailyAgg[k] += qtd;
         }
     });
     
-    aggData = Object.keys(dailyAgg).map(k => ({ data_referencia: k, qtd_realizada: dailyAgg[k] })).sort((a,b) => new Date(a.data_referencia) - new Date(b.data_referencia));
+    const aggData = Object.keys(dailyAgg).map(k => ({ data_referencia: k, qtd_realizada: dailyAgg[k] })).sort((a,b) => new Date(a.data_referencia) - new Date(b.data_referencia));
     const realizado = aggData.reduce((sum, i) => sum + i.qtd_realizada, 0);
 
     const start = new Date(GlobalFilter.startDate + 'T00:00:00');
@@ -229,7 +202,6 @@ function renderExecutiveView() {
     const today = new Date();
     const paceDateLimit = end < today ? end : today;
 
-    // LÓGICA ATUALIZADA: Conta a meta somente dentro do período de tempo do Filtro
     targetMetas.forEach(m => {
         const d = parseDateBR(m.data);
         if(d && d >= start && d <= end) {
@@ -252,12 +224,27 @@ function renderExecutiveView() {
 
     const elPaceBadge = document.getElementById('paceBadge');
     const elPaceDias = document.getElementById('paceDias');
+    
     if (elPaceBadge && elPaceDias) {
         const diff = realizado - paceIdealPeriodo;
         elPaceBadge.className = diff >= 0 ? 'pace-badge ahead' : 'pace-badge behind';
         elPaceBadge.textContent = diff >= 0 ? `+${diff} adiantado` : `${Math.abs(diff)} atrasado`; 
-        const diasRestantes = Math.max(0, Math.ceil((end - new Date()) / (1000 * 60 * 60 * 24)));
-        elPaceDias.textContent = `restam ${diasRestantes} dias no período`;
+        
+        // --- NOVA LÓGICA DE DIAS ÚTEIS RESTANTES ---
+        const endOfToday = new Date();
+        endOfToday.setHours(23, 59, 59, 999);
+        const datasRestantesUnicas = new Set();
+        
+        targetMetas.forEach(m => {
+            const d = parseDateBR(m.data);
+            // Conta as datas úteis da planilha que são MAIORES que hoje e menores ou iguais à data final do filtro
+            if(d && d > endOfToday && d <= end) {
+                datasRestantesUnicas.add(m.data);
+            }
+        });
+        
+        const diasUteisRestantes = datasRestantesUnicas.size;
+        elPaceDias.textContent = `restam ${diasUteisRestantes} dias úteis no período`;
     }
     
     const barAting = document.getElementById('atingimentoBar');
@@ -275,166 +262,56 @@ function renderExecutiveView() {
     }
 }
 
-function renderFunnelData() {
-    const filtered = applyFilters(DATA_CACHE.funnel);
-    const c = { prospect: 0, tentativa: 0, conectado: 0, reuniao: 0, venda: 0, sum_days: 0, count_days: 0 };
-    filtered.forEach(i => {
-        c.prospect += parseInt(i.count_prospect)||0; c.tentativa += parseInt(i.count_tentativa)||0;
-        c.conectado += parseInt(i.count_conectado)||0; c.reuniao += parseInt(i.count_reuniao)||0;
-        c.venda += parseInt(i.count_venda)||0; c.sum_days += parseFloat(i.sum_days_to_close)||0;
-        c.count_days += parseInt(i.count_closed_with_days)||0;
-    });
-    
-    const maxVal = Math.max(c.prospect, c.tentativa, c.conectado, c.reuniao, c.venda) || 1;
-    
-    updateFunnelBar('prospect', c.prospect, maxVal); 
-    updateFunnelBar('tentativa', c.tentativa, maxVal);
-    updateFunnelBar('conectado', c.conectado, maxVal); 
-    updateFunnelBar('reuniao', c.reuniao, maxVal);
-    updateFunnelBar('venda', c.venda, maxVal);
-    
-    updateConversion('tentativa', c.prospect, c.tentativa); 
-    updateConversion('conectado', c.tentativa, c.conectado);
-    updateConversion('reuniao', c.conectado, c.reuniao);
-    updateConversion('venda', c.reuniao, c.venda);
-    
-    const globalConv = c.prospect > 0 ? (c.venda/c.prospect)*100 : 0;
-    document.querySelector('[data-global-conversion]').textContent = globalConv.toFixed(1) + '%';
-    
-    const elCiclo = document.querySelector('[data-cycle-days]');
-    if(elCiclo) {
-        const ciclo = c.count_days > 0 ? (c.sum_days/c.count_days) : 0;
-        elCiclo.textContent = ciclo.toFixed(1) + ' dias';
-        elCiclo.style.color = ciclo > 5 ? '#ef4444' : '#22c55e';
-    }
-}
-
-function updateFunnelBar(s, v, m) {
-    document.querySelector(`[data-value="${s}"]`).textContent = v;
-    const percentage = (v/m)*100;
-    document.querySelector(`[data-stage="${s}"]`).style.width = `${percentage}%`;
-}
-
-function updateConversion(s, b, v, label) {
-    const convPerc = b > 0 ? (v/b)*100 : 0;
-    const convEl = document.querySelector(`[data-conversion="${s}"]`);
-    if(convEl) {
-        convEl.textContent = convPerc.toFixed(1) + '%';
-        if(label && !convEl.nextElementSibling?.classList.contains('conversion-label')) {
-            const labelEl = document.createElement('span');
-            labelEl.className = 'conversion-label';
-            labelEl.textContent = label;
-            convEl.parentElement.appendChild(labelEl);
-        }
-    }
-}
-
-function renderChannelPerformance() {
-    const eff = document.getElementById('channel-effectiveness-container');
-    const tbody = document.getElementById('channel-matrix-body');
-    const thead = document.getElementById('channel-matrix-head');
-    if(!eff) return;
-
-    const filtered = applyFilters(DATA_CACHE.channels);
-    const chStats = {}; const sdrMatrix = {}; const allCh = new Set();
-    
-    filtered.forEach(i => {
-        const ch = i.canal_nome || 'Desc'; const sdr = i.sdr_name || 'Desc';
-        const tl = parseInt(i.total_leads)||0; const v = parseInt(i.vendas)||0;
-        allCh.add(ch);
-        if(!chStats[ch]) chStats[ch] = {l:0, r:parseInt(i.reunioes)||0, v:0};
-        chStats[ch].l += tl; chStats[ch].r += parseInt(i.reunioes)||0; chStats[ch].v += v;
-        if(!sdrMatrix[sdr]) sdrMatrix[sdr]={};
-        if(!sdrMatrix[sdr][ch]) sdrMatrix[sdr][ch]={v:0, l:0};
-        sdrMatrix[sdr][ch].v += v; sdrMatrix[sdr][ch].l += tl;
-    });
-
-    eff.innerHTML = '';
-    if(!Object.keys(chStats).length) eff.innerHTML = '<div style="text-align:center;color:#666">Sem dados</div>';
-    
-    Object.keys(chStats).sort((a,b) => (chStats[b].v/chStats[b].l||0) - (chStats[a].v/chStats[a].l||0)).forEach(ch => {
-        const s = chStats[ch]; const cv = s.l > 0 ? (s.v/s.l)*100 : 0;
-        let color = cv >= 15 ? 'high' : (cv >= 8 ? 'medium' : 'very-low');
-        const w = Math.min(cv, 100);
-        
-        eff.innerHTML += `
-        <div class="channel-row">
-            <span class="channel-name">${ch}</span>
-            <div class="channel-bar-container">
-                <div class="channel-bar-wrapper">
-                    <div class="channel-bar-track">
-                        <div class="channel-bar-fill ${color}" style="width:${w}%"></div>
-                    </div>
-                    <span class="channel-bar-conversion">${cv.toFixed(1)}%</span>
-                </div>
-                <div class="channel-stats">
-                    <span>Prospects: <span class="value">${s.l}</span></span>
-                    <span>Agendadas: <span class="value">${s.r}</span></span>
-                    <span>Realizadas: <span class="value">${s.v}</span></span>
-                </div>
-            </div>
-        </div>`;
-    });
-
-    const sortedCh = Array.from(allCh).sort();
-    thead.innerHTML = `<tr><th>SDR</th>${sortedCh.map(c=>`<th>${c.toUpperCase()}</th>`).join('')}</tr>`;
-    tbody.innerHTML = '';
-    Object.keys(sdrMatrix).forEach(sdr => {
-        let html = `<tr><td>${sdr}</td>`;
-        sortedCh.forEach(ch => {
-            const d = sdrMatrix[sdr][ch];
-            if(d && d.v > 0) {
-                const cv = d.l > 0 ? (d.v/d.l)*100 : 0;
-                const cl = cv >= 15 ? 'green' : (cv >= 8 ? 'yellow' : 'red');
-                const w = Math.min((cv/20)*30, 40);
-                html += `<td><div class="matrix-cell-content"><span class="mini-bar ${cl}" style="width:${Math.max(w,4)}px"></span><span class="matrix-value">${d.v}</span><span class="matrix-perc">(${cv.toFixed(0)}%)</span></div></td>`;
-            } else { 
-                html += `<td><div class="matrix-cell-content"><span class="status-dot red" style="width:6px;height:6px;box-shadow:none"></span><span class="matrix-value" style="color:#666">0</span><span class="matrix-perc">(0%)</span></div></td>`; 
-            }
-        });
-        tbody.innerHTML += html + '</tr>';
-    });
-}
-
 function renderSdrPerformance() {
     const tbody = document.getElementById('sinaleiro-body');
     if(!tbody) return;
-    const filtered = applyFilters(DATA_CACHE.sdr);
-    const lossFiltered = applyFilters(DATA_CACHE.loss);
+    
+    const start = new Date(GlobalFilter.startDate + 'T00:00:00');
+    const end = new Date(GlobalFilter.endDate + 'T23:59:59');
+    
+    const targetMonth = end.getMonth();
+    const targetYear = end.getFullYear();
     
     const sdrMap = {};
-    const sdrNoShow = {};
     
-    lossFiltered.forEach(i => {
-        const sdr = i.sdr_name || 'Desc';
-        if(!sdrNoShow[sdr]) sdrNoShow[sdr] = {total: 0, real: 0, perd: 0};
-        sdrNoShow[sdr].total += parseInt(i.total_agendados)||0;
-        sdrNoShow[sdr].real += parseInt(i.qtd_realizadas)||0;
-        sdrNoShow[sdr].perd += parseInt(i.qtd_perdidas_143)||0;
-    });
-    
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
-    
-    filtered.forEach(i => {
-        const key = i.responsible_user_id && String(i.responsible_user_id) !== '0' ? i.responsible_user_id : i.sdr_name;
+    DATA_CACHE.unified.forEach(i => {
+        if (GlobalFilter.sdrId !== 'all') {
+            const id = i.sdr_id || i.responsible_user_id || i.id || i['user id'];
+            if ((!id || String(id) === '0') && GlobalFilter.sdrId !== 'all') return;
+            if (id && String(id) !== String(GlobalFilter.sdrId)) return;
+        }
         
-        if(!sdrMap[key]) sdrMap[key] = { name: i.sdr_name, pTotal:0, pMes:0, r:0, v:0 };
+        if (GlobalFilter.channelId !== 'all') {
+            const ch = i.canal_origem || i.canal_nome || 'Não identificado';
+            if (ch !== GlobalFilter.channelId) return;
+        }
+
+        const key = i.sdr_id && String(i.sdr_id) !== '0' ? i.sdr_id : i.sdr_name;
+        if(!key) return;
+
+        if(!sdrMap[key]) sdrMap[key] = { name: i.sdr_name, pTotal:0, pMes:0, r:0, v:0, perd:0 };
         
-        const prospects = parseInt(i.prospects||0);
-        sdrMap[key].pTotal += prospects;
-        
+        const prospects = parseInt(i.count_prospect)||0;
+        let isDateInPeriod = false;
+
         if(i.data_referencia) {
-            const dataRef = new Date(i.data_referencia);
-            if(dataRef.getMonth() === currentMonth && dataRef.getFullYear() === currentYear) {
+            const dataRef = new Date(i.data_referencia + 'T12:00:00');
+            if(dataRef >= start && dataRef <= end) {
+                isDateInPeriod = true;
+            }
+            if(dataRef.getMonth() === targetMonth && dataRef.getFullYear() === targetYear) {
                 sdrMap[key].pMes += prospects;
             }
         }
         
-        sdrMap[key].r += parseInt(i.reunioes||0);
-        sdrMap[key].v += parseInt(i.vendas||0);
+        if (isDateInPeriod) {
+            sdrMap[key].pTotal += prospects;
+            sdrMap[key].r += parseInt(i.count_reuniao)||0;
+            sdrMap[key].v += parseInt(i.count_venda_ganha)||0;
+            sdrMap[key].perd += parseInt(i.count_venda_perdida)||0;
+        }
         
-        if (i.sdr_name && i.sdr_name.length > sdrMap[key].name.length) {
+        if (i.sdr_name && (!sdrMap[key].name || i.sdr_name.length > sdrMap[key].name.length)) {
             sdrMap[key].name = i.sdr_name;
         }
     });
@@ -449,8 +326,7 @@ function renderSdrPerformance() {
             const pa = s.pTotal > 0 ? (s.r/s.pTotal)*100 : 0; 
             const ar = s.r > 0 ? (s.v/s.r)*100 : 0;
             
-            const noshowData = sdrNoShow[s.name] || {total: 0, real: 0, perd: 0};
-            const noshow = noshowData.total - noshowData.real - noshowData.perd;
+            const noshow = s.r - s.v - s.perd;
             
             let st='green'; 
             if(pa<20 || ar<70) { st='red'; c.crit++; } 
@@ -466,14 +342,14 @@ function renderSdrPerformance() {
                 <td><span class="badge ${getBadgeClassPA(pa)}">${pa.toFixed(1)}%</span></td>
                 <td>${s.v}</td>
                 <td><span class="badge ${getBadgeClassAR(ar)}">${ar.toFixed(1)}%</span></td>
-                <td><span class="badge ${noshow >= 3 ? 'red' : (noshow >= 1 ? 'yellow' : 'green')}">${noshow}</span></td>
+                <td><span class="badge ${noshow >= 3 ? 'red' : (noshow >= 1 ? 'yellow' : 'green')}">${Math.max(0, noshow)}</span></td>
             </tr>`;
         });
     }
     
-    document.getElementById('alert-critical').textContent = c.crit;
-    document.getElementById('alert-warning').textContent = c.warn;
-    document.getElementById('alert-success').textContent = c.succ;
+    const elC = document.getElementById('alert-critical'); if(elC) elC.textContent = c.crit;
+    const elW = document.getElementById('alert-warning'); if(elW) elW.textContent = c.warn;
+    const elS = document.getElementById('alert-success'); if(elS) elS.textContent = c.succ;
 }
 
 function renderBantAnalysis() {
@@ -500,7 +376,9 @@ function renderBantAnalysis() {
     [4,3,2,1].forEach(i => {
         const d = bantMap[i]; 
         const cv = d.l > 0 ? (d.v/d.l)*100 : 0;
-        document.getElementById(`bant-val-${i}`).textContent = d.l; 
+        const elVal = document.getElementById(`bant-val-${i}`);
+        if (elVal) elVal.textContent = d.l; 
+        
         const convEl = document.getElementById(`bant-conv-${i}`);
         if(convEl) {
             convEl.textContent = cv.toFixed(1)+'%';
@@ -564,20 +442,157 @@ function renderBantAnalysis() {
     });
 }
 
+function renderChannelPerformance() {
+    const eff = document.getElementById('channel-effectiveness-container');
+    const tbody = document.getElementById('channel-matrix-body');
+    const thead = document.getElementById('channel-matrix-head');
+    if(!eff) return;
+
+    const filtered = applyFilters(DATA_CACHE.unified);
+    const chStats = {}; const sdrMatrix = {}; const allCh = new Set();
+    
+    filtered.forEach(i => {
+        const ch = i.canal_origem || 'Não identificado'; 
+        const sdr = i.sdr_name || 'Desc';
+        const tl = parseInt(i.count_prospect)||0; 
+        const r = parseInt(i.count_reuniao)||0; 
+        const v = parseInt(i.count_venda_ganha)||0;
+        
+        allCh.add(ch);
+        if(!chStats[ch]) chStats[ch] = {l:0, r:0, v:0};
+        chStats[ch].l += tl; 
+        chStats[ch].r += r; 
+        chStats[ch].v += v;
+        
+        if(!sdrMatrix[sdr]) sdrMatrix[sdr]={};
+        if(!sdrMatrix[sdr][ch]) sdrMatrix[sdr][ch]={v:0, l:0};
+        sdrMatrix[sdr][ch].v += v; 
+        sdrMatrix[sdr][ch].l += tl;
+    });
+
+    eff.innerHTML = '';
+    if(!Object.keys(chStats).length) eff.innerHTML = '<div style="text-align:center;color:#666">Sem dados</div>';
+    
+    Object.keys(chStats).sort((a,b) => (chStats[b].v/chStats[b].l||0) - (chStats[a].v/chStats[a].l||0)).forEach(ch => {
+        const s = chStats[ch]; const cv = s.l > 0 ? (s.v/s.l)*100 : 0;
+        let color = cv >= 15 ? 'high' : (cv >= 8 ? 'medium' : 'very-low');
+        const w = Math.min(cv, 100);
+        
+        eff.innerHTML += `
+        <div class="channel-row">
+            <span class="channel-name">${ch}</span>
+            <div class="channel-bar-container">
+                <div class="channel-bar-wrapper">
+                    <div class="channel-bar-track">
+                        <div class="channel-bar-fill ${color}" style="width:${w}%"></div>
+                    </div>
+                    <span class="channel-bar-conversion">${cv.toFixed(1)}%</span>
+                </div>
+                <div class="channel-stats">
+                    <span>Prospects: <span class="value">${s.l}</span></span>
+                    <span>Agendadas: <span class="value">${s.r}</span></span>
+                    <span>Realizadas: <span class="value">${s.v}</span></span>
+                </div>
+            </div>
+        </div>`;
+    });
+
+    const sortedCh = Array.from(allCh).sort();
+    thead.innerHTML = `<tr><th>SDR</th>${sortedCh.map(c=>`<th>${c.toUpperCase()}</th>`).join('')}</tr>`;
+    tbody.innerHTML = '';
+    Object.keys(sdrMatrix).forEach(sdr => {
+        let html = `<tr><td>${sdr}</td>`;
+        sortedCh.forEach(ch => {
+            const d = sdrMatrix[sdr][ch];
+            if(d && d.v > 0) {
+                const cv = d.l > 0 ? (d.v/d.l)*100 : 0;
+                const cl = cv >= 15 ? 'green' : (cv >= 8 ? 'yellow' : 'red');
+                const barWidth = Math.min(cv, 100);
+                html += `<td><div class="matrix-cell-content"><span class="mini-bar ${cl}" style="width:${barWidth}%"></span><span class="matrix-value">${d.v}</span><span class="matrix-perc">(${cv.toFixed(0)}%)</span></div></td>`;
+            } else { 
+                html += `<td><div class="matrix-cell-content"><span class="status-dot red" style="width:6px;height:6px;box-shadow:none"></span><span class="matrix-value" style="color:#666">0</span><span class="matrix-perc">(0%)</span></div></td>`; 
+            }
+        });
+        tbody.innerHTML += html + '</tr>';
+    });
+}
+
+function renderFunnelData() {
+    const filtered = applyFilters(DATA_CACHE.unified);
+    const c = { prospect: 0, tentativa: 0, conectado: 0, reuniao: 0, venda: 0, sum_days: 0, count_days: 0 };
+    
+    filtered.forEach(i => {
+        c.prospect += parseInt(i.count_prospect)||0; 
+        c.tentativa += parseInt(i.count_tentativa)||0;
+        c.conectado += parseInt(i.count_conectado)||0; 
+        c.reuniao += parseInt(i.count_reuniao)||0;
+        c.venda += parseInt(i.count_venda_ganha)||0; 
+        c.sum_days += parseFloat(i.sum_days_to_close)||0;
+        c.count_days += parseInt(i.count_closed_with_days)||0;
+    });
+    
+    const maxVal = Math.max(c.prospect, c.tentativa, c.conectado, c.reuniao, c.venda) || 1;
+    
+    updateFunnelBar('prospect', c.prospect, maxVal); 
+    updateFunnelBar('tentativa', c.tentativa, maxVal);
+    updateFunnelBar('conectado', c.conectado, maxVal); 
+    updateFunnelBar('reuniao', c.reuniao, maxVal);
+    updateFunnelBar('venda', c.venda, maxVal);
+    
+    updateConversion('tentativa', c.prospect, c.tentativa); 
+    updateConversion('conectado', c.tentativa, c.conectado);
+    updateConversion('reuniao', c.conectado, c.reuniao);
+    updateConversion('venda', c.reuniao, c.venda);
+    
+    const globalConv = c.prospect > 0 ? (c.venda/c.prospect)*100 : 0;
+    const gEl = document.querySelector('[data-global-conversion]');
+    if (gEl) gEl.textContent = globalConv.toFixed(1) + '%';
+    
+    const elCiclo = document.querySelector('[data-cycle-days]');
+    if(elCiclo) {
+        const ciclo = c.count_days > 0 ? (c.sum_days/c.count_days) : 0;
+        elCiclo.textContent = ciclo.toFixed(1) + ' dias';
+        elCiclo.style.color = ciclo > 5 ? '#ef4444' : '#22c55e';
+    }
+}
+
+function updateFunnelBar(s, v, m) {
+    const elVal = document.querySelector(`[data-value="${s}"]`);
+    if(elVal) elVal.textContent = v;
+    
+    const percentage = (v/m)*100;
+    const elStage = document.querySelector(`[data-stage="${s}"]`);
+    if (elStage) elStage.style.width = `${percentage}%`;
+}
+
+function updateConversion(s, b, v, label) {
+    const convPerc = b > 0 ? (v/b)*100 : 0;
+    const convEl = document.querySelector(`[data-conversion="${s}"]`);
+    if(convEl) {
+        convEl.textContent = convPerc.toFixed(1) + '%';
+        if(label && !convEl.nextElementSibling?.classList.contains('conversion-label')) {
+            const labelEl = document.createElement('span');
+            labelEl.className = 'conversion-label';
+            labelEl.textContent = label;
+            convEl.parentElement.appendChild(labelEl);
+        }
+    }
+}
+
 function renderLossAnalysis() {
     const pContainer = document.getElementById('perdas-canal-container');
     const nContainer = document.getElementById('noshow-canal-container');
     if(!pContainer) return;
     
-    const filtered = applyFilters(DATA_CACHE.loss);
+    const filtered = applyFilters(DATA_CACHE.unified);
     const lossMap = {};
     
     filtered.forEach(i => {
-        const ch = i.canal_nome || 'Desc';
+        const ch = i.canal_origem || 'Não identificado';
         if(!lossMap[ch]) lossMap[ch] = {total:0, real:0, perd:0};
-        lossMap[ch].total += parseInt(i.total_agendados)||0; 
-        lossMap[ch].real += parseInt(i.qtd_realizadas)||0; 
-        lossMap[ch].perd += parseInt(i.qtd_perdidas_143)||0;
+        lossMap[ch].total += parseInt(i.count_reuniao)||0; 
+        lossMap[ch].real += parseInt(i.count_venda_ganha)||0; 
+        lossMap[ch].perd += parseInt(i.count_venda_perdida)||0;
     });
     
     const dataArr = Object.keys(lossMap).map(ch => {
