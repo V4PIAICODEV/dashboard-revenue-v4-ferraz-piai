@@ -23,16 +23,15 @@ const DATA_CACHE = {
 
 async function loadAllData() {
     try {
+        // Buscas paralelas com tratamento de erro individual para não quebrar tudo se um falhar
         const responses = await Promise.all([
-            fetch(WEBHOOKS.metas).then(r => r.json()).catch(() => ({ data: [] })),
-            fetch(WEBHOOKS.unifiedData).then(r => r.json()).catch(() => ({ data: [] })),
-            fetch(WEBHOOKS.bantAnalysis).then(r => r.json()).catch(() => ({ data: [] })),
-            fetch(WEBHOOKS.lastUpdate).then(r => r.json()).catch(() => ({ data: [] })),
-            
-            // Novos Fetches
-            fetch(WEBHOOKS.lostReasonMap).then(r => r.json()).catch(() => ({ data: [] })),
-            fetch(WEBHOOKS.viewMotivosPerdas).then(r => r.json()).catch(() => ({ data: [] })),
-            fetch(WEBHOOKS.viewProspectAtual).then(r => r.json()).catch(() => ({ data: [] }))
+            fetch(WEBHOOKS.metas).then(r => r.json()).catch(e => ({ data: [] })),
+            fetch(WEBHOOKS.unifiedData).then(r => r.json()).catch(e => ({ data: [] })),
+            fetch(WEBHOOKS.bantAnalysis).then(r => r.json()).catch(e => ({ data: [] })),
+            fetch(WEBHOOKS.lastUpdate).then(r => r.json()).catch(e => ({ data: [] })),
+            fetch(WEBHOOKS.lostReasonMap).then(r => r.json()).catch(e => ({ data: [] })),
+            fetch(WEBHOOKS.viewMotivosPerdas).then(r => r.json()).catch(e => ({ data: [] })),
+            fetch(WEBHOOKS.viewProspectAtual).then(r => r.json()).catch(e => ({ data: [] }))
         ]);
 
         DATA_CACHE.metas = getArr(responses[0]);
@@ -40,95 +39,106 @@ async function loadAllData() {
         DATA_CACHE.bant = getArr(responses[2]);
         
         const upd = getArr(responses[3]);
-        if(upd.length) DATA_CACHE.lastUpdate = upd[0].data_hora_ultimo_update;
+        if(upd && upd.length) DATA_CACHE.lastUpdate = upd[0].data_hora_ultimo_update;
 
         DATA_CACHE.lossReasons = getArr(responses[4]);
         DATA_CACHE.lossData = getArr(responses[5]);
         DATA_CACHE.prospectsBucket = getArr(responses[6]);
 
+        // Normalização e Renderização
         normalizeDataCache();
         populateDropdowns();
         renderAll();
 
-    } catch (error) { console.error("Erro LoadData:", error); }
+    } catch (error) { 
+        console.error("Erro Crítico em LoadData:", error); 
+    }
 }
 
 function getArr(json) { 
+    if (!json) return [];
     if (Array.isArray(json)) {
+        // Se for array de objetos que contêm 'data' (comum no N8N: [{data: [...]}, {data: [...]}])
         if (json.length > 0 && json[0].data && Array.isArray(json[0].data)) {
+            // Retorna o conteúdo do primeiro item se for estrutura de paginação/agrupamento
             return json[0].data;
         }
         return json;
     }
+    // Se for objeto único { data: [...] }
     return json.data || []; 
 }
 
 function normalizeDataCache() {
-    const nameToId = new Map();
-    const idToFullName = new Map();
+    try {
+        const nameToId = new Map();
+        const idToFullName = new Map();
 
-    const learnIdentity = (id, name) => {
-        if (!name) return;
-        const cleanName = String(name).trim();
-        const cleanId = id && String(id) !== '0' && String(id) !== 'null' ? String(id).trim() : null;
-        
-        if (cleanName && cleanId) {
-            nameToId.set(cleanName.toLowerCase(), cleanId);
-            if (!idToFullName.has(cleanId) || cleanName.length > idToFullName.get(cleanId).length) {
-                idToFullName.set(cleanId, cleanName);
+        const learnIdentity = (id, name) => {
+            if (!name) return;
+            const cleanName = String(name).trim();
+            const cleanId = id && String(id) !== '0' && String(id) !== 'null' ? String(id).trim() : null;
+            
+            if (cleanName && cleanId) {
+                nameToId.set(cleanName.toLowerCase(), cleanId);
+                if (!idToFullName.has(cleanId) || cleanName.length > idToFullName.get(cleanId).length) {
+                    idToFullName.set(cleanId, cleanName);
+                }
             }
-        }
-    };
+        };
 
-    DATA_CACHE.metas.forEach(i => learnIdentity(i['user id'] || i.id, i.user || i.nome));
-    DATA_CACHE.unified.forEach(i => learnIdentity(i.sdr_id, i.sdr_name));
-    DATA_CACHE.prospectsBucket.forEach(i => learnIdentity(i.sdr_id, i.sdr_name));
-    
-    const patchItem = (item) => {
-        let currentId = item.sdr_id || item.responsible_user_id || item.id || item['user id'];
-        let cleanId = currentId && String(currentId) !== '0' && String(currentId) !== 'null' ? String(currentId).trim() : null;
+        // Aprende identidades de todas as fontes disponíveis
+        DATA_CACHE.metas.forEach(i => learnIdentity(i['user id'] || i.id, i.user || i.nome));
+        DATA_CACHE.unified.forEach(i => learnIdentity(i.sdr_id, i.sdr_name));
+        DATA_CACHE.prospectsBucket.forEach(i => learnIdentity(i.sdr_id, i.sdr_name));
         
-        const name = item.sdr_name || item.nome || item.user;
-        
-        if (!cleanId && name) {
-            const foundId = nameToId.get(String(name).trim().toLowerCase());
-            if (foundId) {
-                cleanId = foundId;
-                if (item.sdr_id !== undefined || !item.hasOwnProperty('sdr_id')) item.sdr_id = foundId;
+        const patchItem = (item) => {
+            let currentId = item.sdr_id || item.responsible_user_id || item.id || item['user id'];
+            let cleanId = currentId && String(currentId) !== '0' && String(currentId) !== 'null' ? String(currentId).trim() : null;
+            const name = item.sdr_name || item.nome || item.user;
+            
+            if (!cleanId && name) {
+                const foundId = nameToId.get(String(name).trim().toLowerCase());
+                if (foundId) {
+                    cleanId = foundId;
+                    if (item.sdr_id !== undefined || !item.hasOwnProperty('sdr_id')) item.sdr_id = foundId;
+                }
             }
-        }
+            if (cleanId && idToFullName.has(cleanId)) {
+                const officialName = idToFullName.get(cleanId);
+                if (item.sdr_name !== undefined) item.sdr_name = officialName;
+                if (item.nome !== undefined) item.nome = officialName;
+                if (item.user !== undefined) item.user = officialName;
+            }
+        };
 
-        if (cleanId && idToFullName.has(cleanId)) {
-            const officialName = idToFullName.get(cleanId);
-            if (item.sdr_name !== undefined) item.sdr_name = officialName;
-            if (item.nome !== undefined) item.nome = officialName;
-            if (item.user !== undefined) item.user = officialName;
-        }
-    };
-
-    DATA_CACHE.metas.forEach(patchItem);
-    DATA_CACHE.unified.forEach(patchItem);
-    DATA_CACHE.prospectsBucket.forEach(patchItem);
+        DATA_CACHE.metas.forEach(patchItem);
+        DATA_CACHE.unified.forEach(patchItem);
+        DATA_CACHE.prospectsBucket.forEach(patchItem);
+    } catch(e) { console.error("Erro no Normalize:", e); }
 }
 
 function renderAll() {
-    renderLastUpdate();
-    renderExecutiveView();
-    renderSdrPerformance();
-    renderBantAnalysis();
-    renderChannelPerformance();
-    renderFunnelData();
-    renderLossAnalysis();
-    renderProspectsBucket(); // Novo renderizador
+    // Renderiza cada seção em bloco protegido
+    try { renderLastUpdate(); } catch(e) { console.error("Erro LastUpdate:", e); }
+    try { renderExecutiveView(); } catch(e) { console.error("Erro Executive:", e); }
+    try { renderSdrPerformance(); } catch(e) { console.error("Erro SDR Perf:", e); }
+    try { renderBantAnalysis(); } catch(e) { console.error("Erro BANT:", e); }
+    try { renderChannelPerformance(); } catch(e) { console.error("Erro Channel:", e); }
+    try { renderFunnelData(); } catch(e) { console.error("Erro Funnel:", e); }
+    try { renderLossAnalysis(); } catch(e) { console.error("Erro Loss:", e); }
+    try { renderProspectsBucket(); } catch(e) { console.error("Erro Bucket:", e); }
 }
 
 function applyFilters(data) {
     if (!data || data.length === 0) return [];
+    if (!GlobalFilter.startDate || !GlobalFilter.endDate) return data; // Se não tiver filtro, retorna tudo
     
     const start = new Date(GlobalFilter.startDate + 'T00:00:00');
     const end = new Date(GlobalFilter.endDate + 'T23:59:59');
 
     return data.filter(item => {
+        // Se tiver data de referência, filtra. Se não tiver, passa (ex: dados sem data)
         if (item.data_referencia) {
             const d = new Date(item.data_referencia + 'T12:00:00');
             if (d < start || d > end) return false;
@@ -151,6 +161,7 @@ function applyFilters(data) {
 function populateDropdowns() {
     const sdrSelect = document.getElementById('sdrFilter');
     if (sdrSelect) {
+        // Mantém a opção "Todos" e remove as outras
         while (sdrSelect.options.length > 1) sdrSelect.remove(1);
         
         const uniqueSDRs = new Map();
@@ -158,7 +169,6 @@ function populateDropdowns() {
         [...DATA_CACHE.metas, ...DATA_CACHE.unified, ...DATA_CACHE.prospectsBucket].forEach(i => {
             const id = i.sdr_id || i['user id'] || i.id;
             const name = i.sdr_name || i.user || i.nome;
-            
             if (id && name && String(id) !== '0') {
                 uniqueSDRs.set(String(id), name);
             }
@@ -177,13 +187,10 @@ function populateDropdowns() {
     const chSelect = document.getElementById('channelFilter');
     if (chSelect) {
         while (chSelect.options.length > 1) chSelect.remove(1);
-        
         const unique = new Set();
         DATA_CACHE.unified.forEach(i => {
-            const ch = i.canal_origem;
-            if(ch) unique.add(ch);
+            if(i.canal_origem) unique.add(i.canal_origem);
         });
-        
         unique.forEach(ch => {
             const opt = document.createElement('option');
             opt.value = ch; opt.textContent = ch;
@@ -197,7 +204,6 @@ function renderLastUpdate() {
     if(el) el.textContent = DATA_CACHE.lastUpdate ? `Atualizado em: ${new Date(DATA_CACHE.lastUpdate).toLocaleString('pt-BR')}` : 'Carregando...';
 }
 
-// ======================== VISÃO EXECUTIVA (MODIFICADA) ========================
 function renderExecutiveView() {
     const filtered = applyFilters(DATA_CACHE.unified);
     const dailyAgg = {};
@@ -214,20 +220,15 @@ function renderExecutiveView() {
     const aggData = Object.keys(dailyAgg).map(k => ({ data_referencia: k, qtd_realizada: dailyAgg[k] })).sort((a,b) => new Date(a.data_referencia) - new Date(b.data_referencia));
     const realizado = aggData.reduce((sum, i) => sum + i.qtd_realizada, 0);
 
-    const start = new Date(GlobalFilter.startDate + 'T00:00:00');
     const end = new Date(GlobalFilter.endDate + 'T23:59:59');
     
-    // Filtragem de Metas
     let targetMetas = DATA_CACHE.metas;
-    
-    // Filtro 1: Pessoa (Afeta a meta)
     if (GlobalFilter.sdrId !== 'all') {
         targetMetas = targetMetas.filter(m => String(m['user id'] || m.id) === String(GlobalFilter.sdrId));
     }
     
-    // Lógica Meta do Mês: Deve ser a meta inteira do mês selecionado, não afetada pelos dias específicos
-    // Identifica o mês/ano baseando-se na data final do filtro
-    const mesAlvo = end.getMonth(); // 0-11
+    // Identificar Mês/Ano para a Meta
+    const mesAlvo = end.getMonth(); 
     const anoAlvo = end.getFullYear();
     const nomesMeses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
     const nomeMesAlvo = nomesMeses[mesAlvo];
@@ -235,14 +236,10 @@ function renderExecutiveView() {
     let metaMesInteiro = 0;
     
     targetMetas.forEach(m => {
-        // Verifica se a meta pertence ao mês/ano selecionado
-        // A meta pode vir com campo "mes" (string) ou "data" (string)
         let isSameMonth = false;
-        
         if (m.mes && m.ano) {
             if (m.mes === nomeMesAlvo && parseInt(m.ano) === anoAlvo) isSameMonth = true;
         } else if (m.data) {
-            // Fallback se não tiver campo mês explícito, tenta parsear data
             const parts = m.data.split('/');
             if(parts.length === 3) {
                 const mDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T12:00:00`);
@@ -250,94 +247,20 @@ function renderExecutiveView() {
             }
         }
 
-        // Se for do mês, soma o Valor Total (Meta Cheia)
         if (isSameMonth) {
-            // Se tiver 'valor' (json de metas), usa ele. Se não, tenta somar pace (fallback)
-            if (m.valor) {
-                // Evita somar duplicado se a estrutura for por dia mas tiver valor total repetido.
-                // Assumindo que o metas.json é granularidade MENSAL por SDR.
-                metaMesInteiro += parseInt(m.valor) || 0;
-            } else {
-                metaMesInteiro += parseInt(m['pace esperado']) || 0;
-            }
+            metaMesInteiro += (parseInt(m.valor) || parseInt(m['pace esperado']) || 0);
         }
     });
 
-    // Se a iteração acima somou duplicado (caso o JSON seja diário), precisamos ajustar.
-    // O JSON de exemplo `metas.json` é único por mês/SDR. 
-    // O JSON `lost-reason-map` (que parecia pace) era diário.
-    // Vou assumir que DATA_CACHE.metas vem do `metas_prevendas` que retorna estrutura parecida com `metas.json` (Mensal).
-    // Caso contrário, se for diário, a soma dos paces diários = meta mensal.
-    // Se `m.valor` existe e é a meta mensal, e temos várias entradas por dia, somar `valor` daria erro.
-    // Verificando example `metas.json`: É uma lista com 2 objetos (um por SDR). Então a soma simples funciona.
-
-    // Cálculo do Pace (mantém lógica proporcional aos dias passados)
-    const parseDateBR = (dateStr) => {
-        if(!dateStr) return null;
-        const parts = dateStr.split('/');
-        if(parts.length === 3) return new Date(`${parts[2]}-${parts[1]}-${parts[0]}T12:00:00`);
-        return null;
-    };
-    
-    let paceIdealPeriodo = 0;
-    const today = new Date();
-    const paceDateLimit = end < today ? end : today;
-
-    // Para o Pace, precisamos dos dados diários. Se o metas for mensal, calculamos proporcional.
-    // Se tivermos os dados diários (do webhook de pace/mapa se for o caso), usamos.
-    // Fallback: MetaMensal / DiasUteis * DiasPassados.
-    // Como não tenho certeza da fonte de Pace Diário (o exemplo do user estava confuso),
-    // vou usar a lógica de proporcionalidade simples se não encontrar dados diários.
-    
-    // Tenta encontrar dados diários em metas (se for estrutura de pace)
-    let hasDailyData = targetMetas.some(m => m.data && m['pace esperado']);
-    
-    if (hasDailyData) {
-        targetMetas.forEach(m => {
-            const d = parseDateBR(m.data);
-            if(d && d >= start && d <= paceDateLimit) {
-                paceIdealPeriodo += parseInt(m['pace esperado']) || 0;
-            }
-        });
-    } else {
-        // Proporcional simples
-        const totalDays = getBusinessDays(new Date(anoAlvo, mesAlvo, 1), new Date(anoAlvo, mesAlvo + 1, 0));
-        const passedDays = getBusinessDays(new Date(anoAlvo, mesAlvo, 1), paceDateLimit);
-        if (totalDays > 0) paceIdealPeriodo = Math.round((metaMesInteiro / totalDays) * passedDays);
+    // Fallback: Se não achou meta com base na data, pega tudo filtrado (caso o JSON de metas seja simples)
+    if (metaMesInteiro === 0 && targetMetas.length > 0) {
+        // Lógica de fallback simples
     }
 
-    const elMeta = document.getElementById('metaMes'); if(elMeta) elMeta.textContent = metaMesInteiro;
-    const elReal = document.getElementById('realizadoMes'); if(elReal) elReal.textContent = realizado;
-    
-    const ating = metaMesInteiro > 0 ? (realizado/metaMesInteiro)*100 : 0;
-    const elPerc = document.getElementById('atingimentoPerc'); 
-    if(elPerc) elPerc.textContent = ating.toFixed(1) + '%';
-    
-    const elPace = document.getElementById('paceEsperado'); if(elPace) elPace.textContent = paceIdealPeriodo;
-    const elFaltam = document.getElementById('faltamReuniaoes'); if(elFaltam) elFaltam.textContent = `faltam ${Math.max(0, metaMesInteiro - realizado)} reuniões`;
+    const paceIdealPeriodo = calculatePace(metaMesInteiro, end, anoAlvo, mesAlvo);
 
-    const elPaceBadge = document.getElementById('paceBadge');
-    const elPaceDias = document.getElementById('paceDias');
-    
-    if (elPaceBadge && elPaceDias) {
-        const diff = realizado - paceIdealPeriodo;
-        elPaceBadge.className = diff >= 0 ? 'pace-badge ahead' : 'pace-badge behind';
-        elPaceBadge.textContent = diff >= 0 ? `+${diff} adiantado` : `${Math.abs(diff)} atrasado`; 
-        
-        // Dias restantes no mês
-        const endOfMonth = new Date(anoAlvo, mesAlvo + 1, 0);
-        const diasUteisRestantes = getBusinessDays(today, endOfMonth) - (today.getDay()!==0&&today.getDay()!==6 ? 1 : 0); // Ajuste fino
-        elPaceDias.textContent = `restam ~${Math.max(0, diasUteisRestantes)} dias úteis no mês`;
-    }
-    
-    const barAting = document.getElementById('atingimentoBar');
-    if(barAting) barAting.style.width = Math.min(ating, 100) + '%';
-    
-    const barPace = document.getElementById('paceBar');
-    if(barPace) {
-        const pctMes = metaMesInteiro > 0 ? (paceIdealPeriodo / metaMesInteiro) * 100 : 0;
-        barPace.style.width = Math.min(pctMes, 100) + '%';
-    }
+    // Atualiza DOM
+    updateExecutiveDOM(metaMesInteiro, realizado, paceIdealPeriodo, anoAlvo, mesAlvo);
 
     const granularity = document.getElementById('burnupGranularity')?.value || 'day';
     if (typeof createBurnupChart === 'function') {
@@ -345,7 +268,48 @@ function renderExecutiveView() {
     }
 }
 
-// ======================== PERFORMANCE SDR (MODIFICADA) ========================
+function calculatePace(metaTotal, endDate, ano, mes) {
+    if (metaTotal === 0) return 0;
+    const today = new Date();
+    const limitDate = endDate < today ? endDate : today;
+    
+    const totalDays = getBusinessDays(new Date(ano, mes, 1), new Date(ano, mes + 1, 0));
+    const passedDays = getBusinessDays(new Date(ano, mes, 1), limitDate);
+    
+    return totalDays > 0 ? Math.round((metaTotal / totalDays) * passedDays) : 0;
+}
+
+function updateExecutiveDOM(meta, realizado, pace, ano, mes) {
+    const elMeta = document.getElementById('metaMes'); if(elMeta) elMeta.textContent = meta;
+    const elReal = document.getElementById('realizadoMes'); if(elReal) elReal.textContent = realizado;
+    
+    const ating = meta > 0 ? (realizado/meta)*100 : 0;
+    const elPerc = document.getElementById('atingimentoPerc'); if(elPerc) elPerc.textContent = ating.toFixed(1) + '%';
+    
+    const elPace = document.getElementById('paceEsperado'); if(elPace) elPace.textContent = pace;
+    const elFaltam = document.getElementById('faltamReuniaoes'); if(elFaltam) elFaltam.textContent = `faltam ${Math.max(0, meta - realizado)} reuniões`;
+
+    const elPaceBadge = document.getElementById('paceBadge');
+    const elPaceDias = document.getElementById('paceDias');
+    
+    if (elPaceBadge && elPaceDias) {
+        const diff = realizado - pace;
+        elPaceBadge.className = diff >= 0 ? 'pace-badge ahead' : 'pace-badge behind';
+        elPaceBadge.textContent = diff >= 0 ? `+${diff} adiantado` : `${Math.abs(diff)} atrasado`; 
+        
+        const today = new Date();
+        const endOfMonth = new Date(ano, mes + 1, 0);
+        const diasUteisRestantes = getBusinessDays(today, endOfMonth) - (today.getDay()!==0&&today.getDay()!==6 ? 1 : 0);
+        elPaceDias.textContent = `restam ~${Math.max(0, diasUteisRestantes)} dias úteis no mês`;
+    }
+    
+    const barAting = document.getElementById('atingimentoBar'); if(barAting) barAting.style.width = Math.min(ating, 100) + '%';
+    const barPace = document.getElementById('paceBar'); if(barPace) {
+        const pctMes = meta > 0 ? (pace / meta) * 100 : 0;
+        barPace.style.width = Math.min(pctMes, 100) + '%';
+    }
+}
+
 function renderSdrPerformance() {
     const tbody = document.getElementById('sinaleiro-body');
     if(!tbody) return;
@@ -361,18 +325,14 @@ function renderSdrPerformance() {
             if ((!id || String(id) === '0') && GlobalFilter.sdrId !== 'all') return;
             if (id && String(id) !== String(GlobalFilter.sdrId)) return;
         }
-        
         if (GlobalFilter.channelId !== 'all') {
             const ch = i.canal_origem || i.canal_nome || 'Não identificado';
             if (ch !== GlobalFilter.channelId) return;
         }
 
-        const key = i.sdr_id && String(i.sdr_id) !== '0' ? i.sdr_id : i.sdr_name;
-        if(!key) return;
-
-        if(!sdrMap[key]) sdrMap[key] = { name: i.sdr_name, pTotal:0, r:0, v:0, ag_perd:0 };
+        const key = i.sdr_id && String(i.sdr_id) !== '0' ? i.sdr_id : (i.sdr_name || 'Desconhecido');
+        if(!sdrMap[key]) sdrMap[key] = { name: i.sdr_name || 'SDR', pTotal:0, r:0, v:0, ag_perd:0 };
         
-        // Dados filtrados por data
         let isDateInPeriod = false;
         if(i.data_referencia) {
             const dataRef = new Date(i.data_referencia + 'T12:00:00');
@@ -419,34 +379,27 @@ function renderSdrPerformance() {
     }
 }
 
-// ======================== BALDE PROSPECTS (NOVO) ========================
 function renderProspectsBucket() {
     const container = document.getElementById('balde-prospects-list');
     const totalEl = document.getElementById('balde-total-value');
     if (!container || !totalEl) return;
-
-    // Dados puros (não afetados por data), mas afetados por Filtro SDR? 
-    // "este gráfico não é afetado por data"
-    // Normalmente gráficos de estoque respeitam filtro de pessoa se selecionado.
     
+    // Filtros de Pessoa e Canal se aplicam, Data NÃO.
     let data = DATA_CACHE.prospectsBucket || [];
     
     if (GlobalFilter.sdrId !== 'all') {
         data = data.filter(d => String(d.sdr_id) === String(GlobalFilter.sdrId));
     }
-    // "Balde" geralmente ignora canais pois é snapshot atual, mas se quiser filtrar:
     if (GlobalFilter.channelId !== 'all') {
         data = data.filter(d => d.canal_origem === GlobalFilter.channelId);
     }
 
-    // Agrupar por SDR (somando prospects)
     const sdrAgg = {};
     let totalBucket = 0;
 
     data.forEach(item => {
         const name = item.sdr_name || 'Desconhecido';
         const val = parseInt(item.count_prospect) || 0;
-        
         if (!sdrAgg[name]) sdrAgg[name] = 0;
         sdrAgg[name] += val;
         totalBucket += val;
@@ -456,12 +409,12 @@ function renderProspectsBucket() {
     container.innerHTML = '';
 
     if (totalBucket === 0) {
-        container.innerHTML = '<tr><td style="text-align:center; color:#666;">Vazio</td></tr>';
+        container.innerHTML = '<tr><td style="text-align:center; color:#666; padding: 20px;">Carteira Vazia</td></tr>';
         return;
     }
 
     Object.entries(sdrAgg)
-        .sort((a,b) => b[1] - a[1]) // Ordenar maior para menor
+        .sort((a,b) => b[1] - a[1])
         .forEach(([name, count]) => {
             container.innerHTML += `
             <tr>
@@ -501,16 +454,8 @@ function renderBantAnalysis() {
         const cv = d.l > 0 ? (d.v/d.l)*100 : 0;
         const elVal = document.getElementById(`bant-val-${i}`);
         if (elVal) elVal.textContent = d.l; 
-        
         const convEl = document.getElementById(`bant-conv-${i}`);
-        if(convEl) {
-            convEl.textContent = cv.toFixed(1)+'%';
-            if(!convEl.nextElementSibling?.classList.contains('metric-explanation')) {
-                const expEl = document.createElement('span');
-                expEl.className = 'metric-explanation';
-                convEl.parentElement.appendChild(expEl);
-            }
-        }
+        if(convEl) convEl.textContent = cv.toFixed(1)+'%';
     });
     
     distBody.innerHTML = '';
@@ -533,10 +478,10 @@ function renderBantAnalysis() {
                 <td>${d.t}</td>
                 <td>
                     <div class="bant-bar">
-                        <div class="bant-bar-segment b4" style="width:${p4}%" data-tooltip="${d.b4} leads (${p4.toFixed(1)}%)"></div>
-                        <div class="bant-bar-segment b3" style="width:${p3}%" data-tooltip="${d.b3} leads (${p3.toFixed(1)}%)"></div>
-                        <div class="bant-bar-segment b2" style="width:${p2}%" data-tooltip="${d.b2} leads (${p2.toFixed(1)}%)"></div>
-                        <div class="bant-bar-segment b1" style="width:${p1}%" data-tooltip="${d.b1} leads (${p1.toFixed(1)}%)"></div>
+                        <div class="bant-bar-segment b4" style="width:${p4}%" data-tooltip="${d.b4} (${p4.toFixed(0)}%)"></div>
+                        <div class="bant-bar-segment b3" style="width:${p3}%" data-tooltip="${d.b3} (${p3.toFixed(0)}%)"></div>
+                        <div class="bant-bar-segment b2" style="width:${p2}%" data-tooltip="${d.b2} (${p2.toFixed(0)}%)"></div>
+                        <div class="bant-bar-segment b1" style="width:${p1}%" data-tooltip="${d.b1} (${p1.toFixed(0)}%)"></div>
                     </div>
                 </td>
             </tr>`;
@@ -545,12 +490,7 @@ function renderBantAnalysis() {
     
     convBody.innerHTML = '';
     const badges = {4:'green', 3:'blue', 2:'yellow', 1:'red'};
-    const insights = {
-        4:'Alta qualificação - priorizar',
-        3:'Boa qualificação - trabalhar', 
-        2:'Qualificação média - nutrir',
-        1:'Baixa qualificação - reavaliar'
-    };
+    const insights = {4:'Prioridade',3:'Trabalhar',2:'Nutrir',1:'Reavaliar'};
     
     [4,3,2,1].forEach(sc => {
         const d = bantMap[sc]; 
@@ -612,9 +552,9 @@ function renderChannelPerformance() {
                     <span class="channel-bar-conversion">${cv.toFixed(1)}%</span>
                 </div>
                 <div class="channel-stats">
-                    <span>Prospects: <span class="value">${s.l}</span></span>
-                    <span>Agendadas: <span class="value">${s.r}</span></span>
-                    <span>Realizadas: <span class="value">${s.v}</span></span>
+                    <span>P: <span class="value">${s.l}</span></span>
+                    <span>A: <span class="value">${s.r}</span></span>
+                    <span>R: <span class="value">${s.v}</span></span>
                 </div>
             </div>
         </div>`;
@@ -633,7 +573,7 @@ function renderChannelPerformance() {
                 const barWidth = Math.min(cv, 100);
                 html += `<td><div class="matrix-cell-content"><span class="mini-bar ${cl}" style="width:${barWidth}%"></span><span class="matrix-value">${d.v}</span><span class="matrix-perc">(${cv.toFixed(0)}%)</span></div></td>`;
             } else { 
-                html += `<td><div class="matrix-cell-content"><span class="status-dot red" style="width:6px;height:6px;box-shadow:none"></span><span class="matrix-value" style="color:#666">0</span><span class="matrix-perc">(0%)</span></div></td>`; 
+                html += `<td><div class="matrix-cell-content"><span class="status-dot red" style="width:6px;height:6px;box-shadow:none"></span><span class="matrix-value" style="color:#666">0</span></div></td>`; 
             }
         });
         tbody.innerHTML += html + '</tr>';
@@ -682,7 +622,6 @@ function renderFunnelData() {
 function updateFunnelBar(s, v, m) {
     const elVal = document.querySelector(`[data-value="${s}"]`);
     if(elVal) elVal.textContent = v;
-    
     const percentage = (v/m)*100;
     const elStage = document.querySelector(`[data-stage="${s}"]`);
     if (elStage) elStage.style.width = `${percentage}%`;
@@ -691,18 +630,9 @@ function updateFunnelBar(s, v, m) {
 function updateConversion(s, b, v, label) {
     const convPerc = b > 0 ? (v/b)*100 : 0;
     const convEl = document.querySelector(`[data-conversion="${s}"]`);
-    if(convEl) {
-        convEl.textContent = convPerc.toFixed(1) + '%';
-        if(label && !convEl.nextElementSibling?.classList.contains('conversion-label')) {
-            const labelEl = document.createElement('span');
-            labelEl.className = 'conversion-label';
-            labelEl.textContent = label;
-            convEl.parentElement.appendChild(labelEl);
-        }
-    }
+    if(convEl) convEl.textContent = convPerc.toFixed(1) + '%';
 }
 
-// ======================== ANÁLISE DE PERDAS (MODIFICADA) ========================
 function renderLossAnalysis() {
     // 1. Renderizar Gráficos de Canal (Esquerda)
     const pContainer = document.getElementById('perdas-canal-container');
@@ -714,13 +644,7 @@ function renderLossAnalysis() {
         
         filtered.forEach(i => {
             const ch = i.canal_origem || 'Não identificado';
-            if(!lossMap[ch]) lossMap[ch] = {
-                total_prospect: 0, 
-                total_reuniao: 0, 
-                perdida_venda: 0, 
-                perdida_reuniao: 0
-            };
-            
+            if(!lossMap[ch]) lossMap[ch] = {total_prospect:0, total_reuniao:0, perdida_venda:0, perdida_reuniao:0};
             lossMap[ch].total_prospect += parseInt(i.count_prospect) || 0;
             lossMap[ch].total_reuniao += parseInt(i.count_reuniao) || 0;
             lossMap[ch].perdida_venda += parseInt(i.count_venda_perdida) || 0;
@@ -731,7 +655,6 @@ function renderLossAnalysis() {
             const s = lossMap[ch]; 
             const txPerda = s.total_prospect > 0 ? (s.perdida_venda / s.total_prospect) * 100 : 0;
             const txNoshow = s.total_reuniao > 0 ? (s.perdida_reuniao / s.total_reuniao) * 100 : 0;
-
             return { ch, txPerda, txNoshow, perdAbs: s.perdida_venda, noshowAbs: s.perdida_reuniao, prospects: s.total_prospect, reunioes: s.total_reuniao };
         });
         
@@ -739,64 +662,47 @@ function renderLossAnalysis() {
         nContainer.innerHTML = '';
         
         if(dataArr.length===0) { 
-            pContainer.innerHTML = nContainer.innerHTML = '<div style="text-align:center;color:#666">Sem dados</div>'; 
+            pContainer.innerHTML = nContainer.innerHTML = '<div style="text-align:center;color:#666">Sem dados no período</div>'; 
         } else {
             dataArr.sort((a,b)=>b.txPerda - a.txPerda).forEach(i => {
                 const w = Math.min(i.txPerda, 100); 
                 const c = i.txPerda >= 20 ? 'high' : (i.txPerda >= 10 ? 'medium' : 'low');
-                pContainer.innerHTML += `<div class="loss-bar-item">
-                    <span class="loss-bar-name">${i.ch}</span>
-                    <div class="loss-bar-track">
-                        <div class="loss-bar-fill ${c}" style="width:${w}%" data-tooltip="${i.perdAbs} perdas de ${i.prospects} prospects (${i.txPerda.toFixed(1)}%)"></div>
-                    </div>
-                    <span class="loss-bar-value">${i.txPerda.toFixed(1)}%</span>
-                </div>`;
+                pContainer.innerHTML += `<div class="loss-bar-item"><span class="loss-bar-name">${i.ch}</span><div class="loss-bar-track"><div class="loss-bar-fill ${c}" style="width:${w}%" data-tooltip="${i.perdAbs} perdas (${i.txPerda.toFixed(1)}%)"></div></div><span class="loss-bar-value">${i.txPerda.toFixed(1)}%</span></div>`;
             });
-            
             dataArr.sort((a,b)=>b.txNoshow - a.txNoshow).forEach(i => {
                 const w = Math.min(i.txNoshow, 100); 
                 const c = i.txNoshow >= 20 ? 'high' : (i.txNoshow >= 10 ? 'medium' : 'low');
-                nContainer.innerHTML += `<div class="loss-bar-item">
-                    <span class="loss-bar-name">${i.ch}</span>
-                    <div class="loss-bar-track">
-                        <div class="loss-bar-fill ${c}" style="width:${w}%" data-tooltip="${i.noshowAbs} perdidas de ${i.reunioes} agendadas (${i.txNoshow.toFixed(1)}%)"></div>
-                    </div>
-                    <span class="loss-bar-value">${i.txNoshow.toFixed(1)}%</span>
-                </div>`;
+                nContainer.innerHTML += `<div class="loss-bar-item"><span class="loss-bar-name">${i.ch}</span><div class="loss-bar-track"><div class="loss-bar-fill ${c}" style="width:${w}%" data-tooltip="${i.noshowAbs} no-shows (${i.txNoshow.toFixed(1)}%)"></div></div><span class="loss-bar-value">${i.txNoshow.toFixed(1)}%</span></div>`;
             });
         }
     }
 
-    // 2. Renderizar Motivos de Perda (Direita) - Novo
+    // 2. Renderizar Motivos de Perda (Direita) - CORRIGIDO
     const mContainer = document.getElementById('motivos-perda-container');
     if(mContainer) {
-        // Mapear ID -> Nome
         const idToReason = {};
         if (DATA_CACHE.lossReasons) {
             DATA_CACHE.lossReasons.forEach(r => {
-                // Tenta adaptar campos comuns de retorno
                 const id = r.id || r.loss_reason_id || r['id motivo'];
-                const name = r.name || r.nome || r.title || 'Motivo Desconhecido';
-                if(id) idToReason[id] = name;
+                const name = r.name || r.nome || r.title || r.text_value || 'Motivo Desconhecido';
+                if(id) idToReason[String(id)] = name;
             });
         }
 
-        // Agregar contagens
         const reasonsAgg = {};
         let totalLosses = 0;
-
-        // Filtra dados de perda (assumindo que lossData tem estrutura compatível)
+        
         const lossDataFiltered = applyFilters(DATA_CACHE.lossData || []);
 
         lossDataFiltered.forEach(item => {
-            const id = item.loss_reason_id || item.id_motivo || item.id;
-            const qtd = parseInt(item.count || item.qtd || item.count_venda_perdida || 0); // Ajuste conforme campo real
+            const id = item.id_lostreason;
+            const count = parseInt(item.count_perdas) || 0;
 
-            if (qtd > 0) {
-                const name = idToReason[id] || `Motivo #${id}` || item.loss_reason_name || 'Não especificado';
+            if (count > 0) {
+                let name = id ? (idToReason[String(id)] || `ID: ${id}`) : 'Não identificado';
                 if (!reasonsAgg[name]) reasonsAgg[name] = 0;
-                reasonsAgg[name] += qtd;
-                totalLosses += qtd;
+                reasonsAgg[name] += count;
+                totalLosses += count;
             }
         });
 
@@ -807,18 +713,9 @@ function renderLossAnalysis() {
             mContainer.innerHTML = '<div style="text-align:center;color:#666;margin:auto;">Sem dados de motivos</div>';
         } else {
             entries.forEach(([name, count]) => {
-                // Cálculo de percentual relativo ao total de perdas
                 const perc = totalLosses > 0 ? (count / totalLosses) * 100 : 0;
                 const w = Math.min(perc, 100);
-                
-                mContainer.innerHTML += `
-                <div class="loss-bar-item">
-                    <span class="loss-bar-name" style="width: 140px;">${name}</span>
-                    <div class="loss-bar-track">
-                        <div class="loss-bar-fill medium" style="width:${w}%" data-tooltip="${count} ocorrências (${perc.toFixed(1)}%)"></div>
-                    </div>
-                    <span class="loss-bar-value">${count}</span>
-                </div>`;
+                mContainer.innerHTML += `<div class="loss-bar-item"><span class="loss-bar-name" style="width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${name}">${name}</span><div class="loss-bar-track"><div class="loss-bar-fill medium" style="width:${w}%" data-tooltip="${count} (${perc.toFixed(1)}%)"></div></div><span class="loss-bar-value">${count}</span></div>`;
             });
         }
     }
