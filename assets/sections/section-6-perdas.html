@@ -9,41 +9,39 @@
     </div>
 </div>
 
-<div class="grid-2">
-    <div style="display: flex; flex-direction: column; gap: 20px;">
-        <div class="card">
-            <div class="card-title">Percentual de Reuniões Perdidas por Canal</div>
-            <div id="perdas-canal-container">
-                <div style="text-align: center; color: #888; padding: 20px;">Carregando dados...</div>
-            </div>
-            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #2a2a2a;">
-                <div style="font-size: 10px; color: #888; line-height: 1.5;">
-                    <div style="margin-bottom: 3px;">🔴 <strong>Vermelho (≥20%):</strong> Atenção crítica</div>
-                    <div style="margin-bottom: 3px;">🟡 <strong>Amarelo (10-20%):</strong> Monitorar</div>
-                    <div>🟢 <strong>Verde (<10%):</strong> Dentro da meta</div>
-                </div>
-            </div>
+<div class="grid-2" style="margin-bottom: 20px;">
+    <div class="card">
+        <div class="card-title">Percentual de No-Show por Canal</div>
+        <div id="noshow-canal-container">
+            <div style="text-align: center; color: #888; padding: 20px;">Carregando dados...</div>
         </div>
-        
-        <div class="card">
-            <div class="card-title">Percentual de No-Show por Canal</div>
-            <div id="noshow-canal-container">
-                <div style="text-align: center; color: #888; padding: 20px;">Carregando dados...</div>
-            </div>
-            <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #2a2a2a;">
-                <div style="font-size: 10px; color: #888; line-height: 1.5;">
-                    <strong style="color: #fff;">Ações recomendadas:</strong>
-                    <div style="margin-top: 5px;">• Confirmação 24h antes da reunião</div>
-                    <div>• Lembrete 1h antes via WhatsApp/Email</div>
-                </div>
+        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #2a2a2a;">
+            <div style="font-size: 10px; color: #888; line-height: 1.5;">
+                <strong style="color: #fff;">Ações recomendadas:</strong>
+                <div style="margin-top: 5px;">• Confirmação 24h antes da reunião</div>
+                <div>• Lembrete 1h antes via WhatsApp/Email</div>
             </div>
         </div>
     </div>
-    
+
     <div class="card" style="display: flex; flex-direction: column;">
         <div class="card-title">Reuniões Perdidas por Motivo de Perda</div>
         <div id="motivos-perda-container" style="flex: 1; min-height: 200px; display: flex; flex-direction: column; gap: 10px;">
             <div style="text-align: center; color: #888; padding: 20px; margin: auto;">Carregando dados...</div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-title">Percentual de Reuniões Perdidas por Canal</div>
+    <div id="perdas-canal-container">
+        <div style="text-align: center; color: #888; padding: 20px;">Carregando dados...</div>
+    </div>
+    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #2a2a2a;">
+        <div style="font-size: 10px; color: #888; line-height: 1.5;">
+            <div style="margin-bottom: 3px;">🔴 <strong>Vermelho (≥20%):</strong> Atenção crítica</div>
+            <div style="margin-bottom: 3px;">🟡 <strong>Amarelo (10-20%):</strong> Monitorar</div>
+            <div>🟢 <strong>Verde (<10%):</strong> Dentro da meta</div>
         </div>
     </div>
 </div>

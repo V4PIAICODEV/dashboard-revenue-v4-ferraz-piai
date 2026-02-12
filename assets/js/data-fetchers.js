@@ -201,7 +201,7 @@ function populateDropdowns() {
 
 function renderLastUpdate() {
     const el = document.getElementById('currentDate');
-    if(el) el.textContent = DATA_CACHE.lastUpdate ? `Atualizado em: ${new Date(DATA_CACHE.lastUpdate).toLocaleString('pt-BR')}` : 'Carregando...';
+    if(el) el.textContent = DATA_CACHE.lastUpdate ? `Atualizado em: ${new Date(DATA_CACHE.lastUpdate).toLocaleString('pt-BR')} (Atualizações a cada 1 Hora)` : 'Carregando...';
 }
 
 function renderExecutiveView() {
@@ -552,9 +552,9 @@ function renderChannelPerformance() {
                     <span class="channel-bar-conversion">${cv.toFixed(1)}%</span>
                 </div>
                 <div class="channel-stats">
-                    <span>P: <span class="value">${s.l}</span></span>
-                    <span>A: <span class="value">${s.r}</span></span>
-                    <span>R: <span class="value">${s.v}</span></span>
+                    <span>Prospects: <span class="value">${s.l}</span></span>
+                    <span>Agendadas: <span class="value">${s.r}</span></span>
+                    <span>Realizadas: <span class="value">${s.v}</span></span>
                 </div>
             </div>
         </div>`;
@@ -634,7 +634,7 @@ function updateConversion(s, b, v, label) {
 }
 
 function renderLossAnalysis() {
-    // 1. Renderizar Gráficos de Canal (Esquerda)
+    // 1. Renderizar Gráficos de Canal (Esquerda e Baixo agora no novo layout)
     const pContainer = document.getElementById('perdas-canal-container');
     const nContainer = document.getElementById('noshow-canal-container');
     
@@ -664,11 +664,13 @@ function renderLossAnalysis() {
         if(dataArr.length===0) { 
             pContainer.innerHTML = nContainer.innerHTML = '<div style="text-align:center;color:#666">Sem dados no período</div>'; 
         } else {
+            // Renderiza Perdas (Agora expandido embaixo)
             dataArr.sort((a,b)=>b.txPerda - a.txPerda).forEach(i => {
                 const w = Math.min(i.txPerda, 100); 
                 const c = i.txPerda >= 20 ? 'high' : (i.txPerda >= 10 ? 'medium' : 'low');
                 pContainer.innerHTML += `<div class="loss-bar-item"><span class="loss-bar-name">${i.ch}</span><div class="loss-bar-track"><div class="loss-bar-fill ${c}" style="width:${w}%" data-tooltip="${i.perdAbs} perdas (${i.txPerda.toFixed(1)}%)"></div></div><span class="loss-bar-value">${i.txPerda.toFixed(1)}%</span></div>`;
             });
+            // Renderiza No-Show (Agora no topo esquerdo)
             dataArr.sort((a,b)=>b.txNoshow - a.txNoshow).forEach(i => {
                 const w = Math.min(i.txNoshow, 100); 
                 const c = i.txNoshow >= 20 ? 'high' : (i.txNoshow >= 10 ? 'medium' : 'low');
@@ -677,14 +679,16 @@ function renderLossAnalysis() {
         }
     }
 
-    // 2. Renderizar Motivos de Perda (Direita) - CORRIGIDO
+    // 2. Renderizar Motivos de Perda (Topo Direita) - CORRIGIDO MAPEAMENTO
     const mContainer = document.getElementById('motivos-perda-container');
     if(mContainer) {
         const idToReason = {};
         if (DATA_CACHE.lossReasons) {
             DATA_CACHE.lossReasons.forEach(r => {
-                const id = r.id || r.loss_reason_id || r['id motivo'];
-                const name = r.name || r.nome || r.title || r.text_value || 'Motivo Desconhecido';
+                // ALTERAÇÃO AQUI: Adicionado suporte para 'id_lostReason' e 'name_lostreason'
+                const id = r.id || r.loss_reason_id || r['id motivo'] || r.id_lostReason;
+                const name = r.name || r.nome || r.title || r.text_value || r.name_lostreason || 'Motivo Desconhecido';
+                
                 if(id) idToReason[String(id)] = name;
             });
         }
@@ -699,7 +703,9 @@ function renderLossAnalysis() {
             const count = parseInt(item.count_perdas) || 0;
 
             if (count > 0) {
+                // Tenta buscar pelo ID mapeado
                 let name = id ? (idToReason[String(id)] || `ID: ${id}`) : 'Não identificado';
+                
                 if (!reasonsAgg[name]) reasonsAgg[name] = 0;
                 reasonsAgg[name] += count;
                 totalLosses += count;
