@@ -7,8 +7,7 @@
                 <tr>
                     <th style="width: 50px;">Status</th>
                     <th>SDR</th>
-                    <th>Prospects Totais</th>
-                    <th>Prospects Mês</th>
+                    <th>Prospects</th>
                     <th>Agendadas</th>
                     <th>Conv. P→A</th>
                     <th>Realizadas</th>
@@ -18,35 +17,34 @@
             </thead>
             <tbody id="sinaleiro-body">
                 <tr>
-                    <td colspan="9" style="text-align: center;">Carregando dados...</td>
+                    <td colspan="8" style="text-align: center;">Carregando dados...</td>
                 </tr>
             </tbody>
         </table>
         <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #2a2a2a;">
             <div style="font-size: 11px; color: #888; line-height: 1.6;">
                 <strong style="color: #fff; display: block; margin-bottom: 8px;">Legenda das Colunas:</strong>
-                <div style="margin-bottom: 4px;"><strong>Prospects Totais:</strong> Total acumulado de prospects no funil</div>
-                <div style="margin-bottom: 4px;"><strong>Prospects Mês:</strong> Novos prospects que entraram no mês atual</div>
+                <div style="margin-bottom: 4px;"><strong>Prospects:</strong> Total acumulado de prospects no funil</div>
                 <div style="margin-bottom: 4px;"><strong>Conv. P→A:</strong> Conversão de Prospects para Agendadas</div>
                 <div style="margin-bottom: 4px;"><strong>Conv. A→R:</strong> Conversão de Agendadas para Realizadas</div>
                 <div><strong>No-Show:</strong> Reuniões agendadas onde o cliente não compareceu</div>
             </div>
         </div>
     </div>
-    <div class="card">
-        <div class="card-title">Resumo de Alertas</div>
-        <div class="alert-summary">
-            <div class="alert-item critical">
-                <div class="alert-count red" id="alert-critical">-</div>
-                <div class="alert-text"><strong>Atenção Crítica</strong>P→A < 20% ou A→R < 70%, ou ambas abaixo da meta</div>
+    
+    <div class="card" id="balde-prospects-card">
+        <div class="card-title">Balde Prospects</div>
+        <div id="balde-prospects-container" style="display: flex; flex-direction: column; height: 100%;">
+            <div style="text-align: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #2a2a2a;">
+                 <div style="font-size: 11px; color: #888; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px;">Total em Carteira</div>
+                 <div class="meta-value white" id="balde-total-value">0</div>
             </div>
-            <div class="alert-item warning">
-                <div class="alert-count yellow" id="alert-warning">-</div>
-                <div class="alert-text"><strong>Requer Atenção</strong>P→A < 40% ou A→R < 90% (uma abaixo da meta)</div>
-            </div>
-            <div class="alert-item success">
-                <div class="alert-count green" id="alert-success">-</div>
-                <div class="alert-text"><strong>Na Meta</strong>P→A ≥ 40% e A→R ≥ 90%</div>
+            <div class="table-scroll" style="flex: 1;">
+                <table class="data-table">
+                    <tbody id="balde-prospects-list">
+                        <tr><td style="text-align:center; color:#666;">Carregando...</td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>

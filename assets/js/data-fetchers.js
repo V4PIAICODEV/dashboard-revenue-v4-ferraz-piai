@@ -3,11 +3,22 @@ const WEBHOOKS = {
     unifiedData: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/view_funil_vendas_acumulado', 
     bantAnalysis: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/analise-bant',
     metas: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/metas_prevendas',
-    lastUpdate: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/last_update'
+    lastUpdate: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/last_update',
+    
+    // Novos Webhooks
+    lostReasonMap: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/lost-reason-map',
+    viewMotivosPerdas: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/view-motivos-perdas',
+    viewProspectAtual: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/view_prospect_atual'
 };
 
 const DATA_CACHE = {
-    unified: [], bant: [], metas: [], lastUpdate: null
+    unified: [], 
+    bant: [], 
+    metas: [], 
+    lastUpdate: null,
+    lossReasons: [],
+    lossData: [],
+    prospectsBucket: []
 };
 
 async function loadAllData() {
@@ -16,7 +27,12 @@ async function loadAllData() {
             fetch(WEBHOOKS.metas).then(r => r.json()).catch(() => ({ data: [] })),
             fetch(WEBHOOKS.unifiedData).then(r => r.json()).catch(() => ({ data: [] })),
             fetch(WEBHOOKS.bantAnalysis).then(r => r.json()).catch(() => ({ data: [] })),
-            fetch(WEBHOOKS.lastUpdate).then(r => r.json()).catch(() => ({ data: [] }))
+            fetch(WEBHOOKS.lastUpdate).then(r => r.json()).catch(() => ({ data: [] })),
+            
+            // Novos Fetches
+            fetch(WEBHOOKS.lostReasonMap).then(r => r.json()).catch(() => ({ data: [] })),
+            fetch(WEBHOOKS.viewMotivosPerdas).then(r => r.json()).catch(() => ({ data: [] })),
+            fetch(WEBHOOKS.viewProspectAtual).then(r => r.json()).catch(() => ({ data: [] }))
         ]);
 
         DATA_CACHE.metas = getArr(responses[0]);
@@ -25,6 +41,10 @@ async function loadAllData() {
         
         const upd = getArr(responses[3]);
         if(upd.length) DATA_CACHE.lastUpdate = upd[0].data_hora_ultimo_update;
+
+        DATA_CACHE.lossReasons = getArr(responses[4]);
+        DATA_CACHE.lossData = getArr(responses[5]);
+        DATA_CACHE.prospectsBucket = getArr(responses[6]);
 
         normalizeDataCache();
         populateDropdowns();
@@ -62,6 +82,7 @@ function normalizeDataCache() {
 
     DATA_CACHE.metas.forEach(i => learnIdentity(i['user id'] || i.id, i.user || i.nome));
     DATA_CACHE.unified.forEach(i => learnIdentity(i.sdr_id, i.sdr_name));
+    DATA_CACHE.prospectsBucket.forEach(i => learnIdentity(i.sdr_id, i.sdr_name));
     
     const patchItem = (item) => {
         let currentId = item.sdr_id || item.responsible_user_id || item.id || item['user id'];
@@ -87,6 +108,7 @@ function normalizeDataCache() {
 
     DATA_CACHE.metas.forEach(patchItem);
     DATA_CACHE.unified.forEach(patchItem);
+    DATA_CACHE.prospectsBucket.forEach(patchItem);
 }
 
 function renderAll() {
@@ -97,6 +119,7 @@ function renderAll() {
     renderChannelPerformance();
     renderFunnelData();
     renderLossAnalysis();
+    renderProspectsBucket(); // Novo renderizador
 }
 
 function applyFilters(data) {
@@ -132,7 +155,7 @@ function populateDropdowns() {
         
         const uniqueSDRs = new Map();
         
-        [...DATA_CACHE.metas, ...DATA_CACHE.unified].forEach(i => {
+        [...DATA_CACHE.metas, ...DATA_CACHE.unified, ...DATA_CACHE.prospectsBucket].forEach(i => {
             const id = i.sdr_id || i['user id'] || i.id;
             const name = i.sdr_name || i.user || i.nome;
             
@@ -174,6 +197,7 @@ function renderLastUpdate() {
     if(el) el.textContent = DATA_CACHE.lastUpdate ? `Atualizado em: ${new Date(DATA_CACHE.lastUpdate).toLocaleString('pt-BR')}` : 'Carregando...';
 }
 
+// ======================== VISÃO EXECUTIVA (MODIFICADA) ========================
 function renderExecutiveView() {
     const filtered = applyFilters(DATA_CACHE.unified);
     const dailyAgg = {};
@@ -193,43 +217,104 @@ function renderExecutiveView() {
     const start = new Date(GlobalFilter.startDate + 'T00:00:00');
     const end = new Date(GlobalFilter.endDate + 'T23:59:59');
     
+    // Filtragem de Metas
     let targetMetas = DATA_CACHE.metas;
+    
+    // Filtro 1: Pessoa (Afeta a meta)
     if (GlobalFilter.sdrId !== 'all') {
         targetMetas = targetMetas.filter(m => String(m['user id'] || m.id) === String(GlobalFilter.sdrId));
     }
     
+    // Lógica Meta do Mês: Deve ser a meta inteira do mês selecionado, não afetada pelos dias específicos
+    // Identifica o mês/ano baseando-se na data final do filtro
+    const mesAlvo = end.getMonth(); // 0-11
+    const anoAlvo = end.getFullYear();
+    const nomesMeses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    const nomeMesAlvo = nomesMeses[mesAlvo];
+
+    let metaMesInteiro = 0;
+    
+    targetMetas.forEach(m => {
+        // Verifica se a meta pertence ao mês/ano selecionado
+        // A meta pode vir com campo "mes" (string) ou "data" (string)
+        let isSameMonth = false;
+        
+        if (m.mes && m.ano) {
+            if (m.mes === nomeMesAlvo && parseInt(m.ano) === anoAlvo) isSameMonth = true;
+        } else if (m.data) {
+            // Fallback se não tiver campo mês explícito, tenta parsear data
+            const parts = m.data.split('/');
+            if(parts.length === 3) {
+                const mDate = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T12:00:00`);
+                if (mDate.getMonth() === mesAlvo && mDate.getFullYear() === anoAlvo) isSameMonth = true;
+            }
+        }
+
+        // Se for do mês, soma o Valor Total (Meta Cheia)
+        if (isSameMonth) {
+            // Se tiver 'valor' (json de metas), usa ele. Se não, tenta somar pace (fallback)
+            if (m.valor) {
+                // Evita somar duplicado se a estrutura for por dia mas tiver valor total repetido.
+                // Assumindo que o metas.json é granularidade MENSAL por SDR.
+                metaMesInteiro += parseInt(m.valor) || 0;
+            } else {
+                metaMesInteiro += parseInt(m['pace esperado']) || 0;
+            }
+        }
+    });
+
+    // Se a iteração acima somou duplicado (caso o JSON seja diário), precisamos ajustar.
+    // O JSON de exemplo `metas.json` é único por mês/SDR. 
+    // O JSON `lost-reason-map` (que parecia pace) era diário.
+    // Vou assumir que DATA_CACHE.metas vem do `metas_prevendas` que retorna estrutura parecida com `metas.json` (Mensal).
+    // Caso contrário, se for diário, a soma dos paces diários = meta mensal.
+    // Se `m.valor` existe e é a meta mensal, e temos várias entradas por dia, somar `valor` daria erro.
+    // Verificando example `metas.json`: É uma lista com 2 objetos (um por SDR). Então a soma simples funciona.
+
+    // Cálculo do Pace (mantém lógica proporcional aos dias passados)
     const parseDateBR = (dateStr) => {
         if(!dateStr) return null;
         const parts = dateStr.split('/');
         if(parts.length === 3) return new Date(`${parts[2]}-${parts[1]}-${parts[0]}T12:00:00`);
         return null;
     };
-
-    let metaPeriodo = 0;
-    let paceIdealPeriodo = 0;
     
+    let paceIdealPeriodo = 0;
     const today = new Date();
     const paceDateLimit = end < today ? end : today;
 
-    targetMetas.forEach(m => {
-        const d = parseDateBR(m.data);
-        if(d && d >= start && d <= end) {
-            metaPeriodo += parseInt(m['pace esperado']) || 0;
-        }
-        if(d && d >= start && d <= paceDateLimit) {
-            paceIdealPeriodo += parseInt(m['pace esperado']) || 0;
-        }
-    });
+    // Para o Pace, precisamos dos dados diários. Se o metas for mensal, calculamos proporcional.
+    // Se tivermos os dados diários (do webhook de pace/mapa se for o caso), usamos.
+    // Fallback: MetaMensal / DiasUteis * DiasPassados.
+    // Como não tenho certeza da fonte de Pace Diário (o exemplo do user estava confuso),
+    // vou usar a lógica de proporcionalidade simples se não encontrar dados diários.
+    
+    // Tenta encontrar dados diários em metas (se for estrutura de pace)
+    let hasDailyData = targetMetas.some(m => m.data && m['pace esperado']);
+    
+    if (hasDailyData) {
+        targetMetas.forEach(m => {
+            const d = parseDateBR(m.data);
+            if(d && d >= start && d <= paceDateLimit) {
+                paceIdealPeriodo += parseInt(m['pace esperado']) || 0;
+            }
+        });
+    } else {
+        // Proporcional simples
+        const totalDays = getBusinessDays(new Date(anoAlvo, mesAlvo, 1), new Date(anoAlvo, mesAlvo + 1, 0));
+        const passedDays = getBusinessDays(new Date(anoAlvo, mesAlvo, 1), paceDateLimit);
+        if (totalDays > 0) paceIdealPeriodo = Math.round((metaMesInteiro / totalDays) * passedDays);
+    }
 
-    const elMeta = document.getElementById('metaMes'); if(elMeta) elMeta.textContent = metaPeriodo;
+    const elMeta = document.getElementById('metaMes'); if(elMeta) elMeta.textContent = metaMesInteiro;
     const elReal = document.getElementById('realizadoMes'); if(elReal) elReal.textContent = realizado;
     
-    const ating = metaPeriodo > 0 ? (realizado/metaPeriodo)*100 : 0;
+    const ating = metaMesInteiro > 0 ? (realizado/metaMesInteiro)*100 : 0;
     const elPerc = document.getElementById('atingimentoPerc'); 
     if(elPerc) elPerc.textContent = ating.toFixed(1) + '%';
     
     const elPace = document.getElementById('paceEsperado'); if(elPace) elPace.textContent = paceIdealPeriodo;
-    const elFaltam = document.getElementById('faltamReuniaoes'); if(elFaltam) elFaltam.textContent = `faltam ${Math.max(0, metaPeriodo - realizado)} reuniões`;
+    const elFaltam = document.getElementById('faltamReuniaoes'); if(elFaltam) elFaltam.textContent = `faltam ${Math.max(0, metaMesInteiro - realizado)} reuniões`;
 
     const elPaceBadge = document.getElementById('paceBadge');
     const elPaceDias = document.getElementById('paceDias');
@@ -239,19 +324,10 @@ function renderExecutiveView() {
         elPaceBadge.className = diff >= 0 ? 'pace-badge ahead' : 'pace-badge behind';
         elPaceBadge.textContent = diff >= 0 ? `+${diff} adiantado` : `${Math.abs(diff)} atrasado`; 
         
-        const endOfToday = new Date();
-        endOfToday.setHours(23, 59, 59, 999);
-        const datasRestantesUnicas = new Set();
-        
-        targetMetas.forEach(m => {
-            const d = parseDateBR(m.data);
-            if(d && d > endOfToday && d <= end) {
-                datasRestantesUnicas.add(m.data);
-            }
-        });
-        
-        const diasUteisRestantes = datasRestantesUnicas.size;
-        elPaceDias.textContent = `restam ${diasUteisRestantes} dias úteis no período`;
+        // Dias restantes no mês
+        const endOfMonth = new Date(anoAlvo, mesAlvo + 1, 0);
+        const diasUteisRestantes = getBusinessDays(today, endOfMonth) - (today.getDay()!==0&&today.getDay()!==6 ? 1 : 0); // Ajuste fino
+        elPaceDias.textContent = `restam ~${Math.max(0, diasUteisRestantes)} dias úteis no mês`;
     }
     
     const barAting = document.getElementById('atingimentoBar');
@@ -259,7 +335,7 @@ function renderExecutiveView() {
     
     const barPace = document.getElementById('paceBar');
     if(barPace) {
-        const pctMes = metaPeriodo > 0 ? (paceIdealPeriodo / metaPeriodo) * 100 : 0;
+        const pctMes = metaMesInteiro > 0 ? (paceIdealPeriodo / metaMesInteiro) * 100 : 0;
         barPace.style.width = Math.min(pctMes, 100) + '%';
     }
 
@@ -269,15 +345,13 @@ function renderExecutiveView() {
     }
 }
 
+// ======================== PERFORMANCE SDR (MODIFICADA) ========================
 function renderSdrPerformance() {
     const tbody = document.getElementById('sinaleiro-body');
     if(!tbody) return;
     
     const start = new Date(GlobalFilter.startDate + 'T00:00:00');
     const end = new Date(GlobalFilter.endDate + 'T23:59:59');
-    
-    const targetMonth = end.getMonth();
-    const targetYear = end.getFullYear();
     
     const sdrMap = {};
     
@@ -296,28 +370,19 @@ function renderSdrPerformance() {
         const key = i.sdr_id && String(i.sdr_id) !== '0' ? i.sdr_id : i.sdr_name;
         if(!key) return;
 
-        if(!sdrMap[key]) sdrMap[key] = { name: i.sdr_name, pTotal:0, pMes:0, r:0, v:0, perd:0, ag_perd:0 };
+        if(!sdrMap[key]) sdrMap[key] = { name: i.sdr_name, pTotal:0, r:0, v:0, ag_perd:0 };
         
-        const prospects = parseInt(i.count_prospect)||0;
+        // Dados filtrados por data
         let isDateInPeriod = false;
-
         if(i.data_referencia) {
             const dataRef = new Date(i.data_referencia + 'T12:00:00');
-            if(dataRef >= start && dataRef <= end) {
-                isDateInPeriod = true;
-            }
-            if(dataRef.getMonth() === targetMonth && dataRef.getFullYear() === targetYear) {
-                sdrMap[key].pMes += prospects;
-            }
+            if(dataRef >= start && dataRef <= end) isDateInPeriod = true;
         }
         
         if (isDateInPeriod) {
-            sdrMap[key].pTotal += prospects;
+            sdrMap[key].pTotal += parseInt(i.count_prospect)||0;
             sdrMap[key].r += parseInt(i.count_reuniao)||0;
             sdrMap[key].v += parseInt(i.count_venda_ganha)||0;
-            // Para o cálculo do No-Show no Sinaleiro, mantemos a lógica antiga ou adaptamos se necessário
-            // O No-Show aqui é visualizado apenas como badge
-            // Usamos count_reuniao_perdida se disponível para precisão
             sdrMap[key].ag_perd += parseInt(i.count_reuniao_perdida)||0;
         }
         
@@ -327,30 +392,23 @@ function renderSdrPerformance() {
     });
 
     tbody.innerHTML = '';
-    let c = {crit:0, warn:0, succ:0};
     
     if(Object.keys(sdrMap).length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#888">Sem dados</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#888">Sem dados</td></tr>';
     } else {
         Object.values(sdrMap).forEach(s => {
             const pa = s.pTotal > 0 ? (s.r/s.pTotal)*100 : 0; 
             const ar = s.r > 0 ? (s.v/s.r)*100 : 0;
-            
-            // Se tivermos a coluna explicita de reuniao_perdida, usamos ela para o noshow
-            // Caso contrário, usamos a lógica dedutiva (Agendada - Realizada - PerdidaVenda)
-            // Assumindo que a count_reuniao_perdida é exatamente o No-Show/Cancelamento de agendamento
             const noshow = s.ag_perd;
             
             let st='green'; 
-            if(pa<20 || ar<70) { st='red'; c.crit++; } 
-            else if(pa<40 || ar<90) { st='yellow'; c.warn++; } 
-            else c.succ++;
+            if(pa<20 || ar<70) st='red';
+            else if(pa<40 || ar<90) st='yellow';
             
             tbody.innerHTML += `<tr>
                 <td><span class="status-dot ${st}"></span></td>
                 <td class="sinaleiro-name">${s.name}</td>
                 <td>${s.pTotal}</td>
-                <td>${s.pMes}</td>
                 <td>${s.r}</td>
                 <td><span class="badge ${getBadgeClassPA(pa)}">${pa.toFixed(1)}%</span></td>
                 <td>${s.v}</td>
@@ -359,10 +417,62 @@ function renderSdrPerformance() {
             </tr>`;
         });
     }
+}
+
+// ======================== BALDE PROSPECTS (NOVO) ========================
+function renderProspectsBucket() {
+    const container = document.getElementById('balde-prospects-list');
+    const totalEl = document.getElementById('balde-total-value');
+    if (!container || !totalEl) return;
+
+    // Dados puros (não afetados por data), mas afetados por Filtro SDR? 
+    // "este gráfico não é afetado por data"
+    // Normalmente gráficos de estoque respeitam filtro de pessoa se selecionado.
     
-    const elC = document.getElementById('alert-critical'); if(elC) elC.textContent = c.crit;
-    const elW = document.getElementById('alert-warning'); if(elW) elW.textContent = c.warn;
-    const elS = document.getElementById('alert-success'); if(elS) elS.textContent = c.succ;
+    let data = DATA_CACHE.prospectsBucket || [];
+    
+    if (GlobalFilter.sdrId !== 'all') {
+        data = data.filter(d => String(d.sdr_id) === String(GlobalFilter.sdrId));
+    }
+    // "Balde" geralmente ignora canais pois é snapshot atual, mas se quiser filtrar:
+    if (GlobalFilter.channelId !== 'all') {
+        data = data.filter(d => d.canal_origem === GlobalFilter.channelId);
+    }
+
+    // Agrupar por SDR (somando prospects)
+    const sdrAgg = {};
+    let totalBucket = 0;
+
+    data.forEach(item => {
+        const name = item.sdr_name || 'Desconhecido';
+        const val = parseInt(item.count_prospect) || 0;
+        
+        if (!sdrAgg[name]) sdrAgg[name] = 0;
+        sdrAgg[name] += val;
+        totalBucket += val;
+    });
+
+    totalEl.textContent = totalBucket;
+    container.innerHTML = '';
+
+    if (totalBucket === 0) {
+        container.innerHTML = '<tr><td style="text-align:center; color:#666;">Vazio</td></tr>';
+        return;
+    }
+
+    Object.entries(sdrAgg)
+        .sort((a,b) => b[1] - a[1]) // Ordenar maior para menor
+        .forEach(([name, count]) => {
+            container.innerHTML += `
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #1f1f1f;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="color: #ccc; font-weight: 500;">${name}</span>
+                        <span style="color: #fff; font-weight: 700; font-size: 14px;">${count}</span>
+                    </div>
+                </td>
+            </tr>`;
+        });
 }
 
 function renderBantAnalysis() {
@@ -592,78 +702,124 @@ function updateConversion(s, b, v, label) {
     }
 }
 
+// ======================== ANÁLISE DE PERDAS (MODIFICADA) ========================
 function renderLossAnalysis() {
+    // 1. Renderizar Gráficos de Canal (Esquerda)
     const pContainer = document.getElementById('perdas-canal-container');
     const nContainer = document.getElementById('noshow-canal-container');
-    if(!pContainer) return;
     
-    const filtered = applyFilters(DATA_CACHE.unified);
-    const lossMap = {};
-    
-    filtered.forEach(i => {
-        const ch = i.canal_origem || 'Não identificado';
-        if(!lossMap[ch]) lossMap[ch] = {
-            total_prospect: 0, 
-            total_reuniao: 0, 
-            perdida_venda: 0, 
-            perdida_reuniao: 0
-        };
+    if(pContainer && nContainer) {
+        const filtered = applyFilters(DATA_CACHE.unified);
+        const lossMap = {};
         
-        lossMap[ch].total_prospect += parseInt(i.count_prospect) || 0;
-        lossMap[ch].total_reuniao += parseInt(i.count_reuniao) || 0;
-        lossMap[ch].perdida_venda += parseInt(i.count_venda_perdida) || 0;
-        lossMap[ch].perdida_reuniao += parseInt(i.count_reuniao_perdida) || 0;
-    });
-    
-    const dataArr = Object.keys(lossMap).map(ch => {
-        const s = lossMap[ch]; 
+        filtered.forEach(i => {
+            const ch = i.canal_origem || 'Não identificado';
+            if(!lossMap[ch]) lossMap[ch] = {
+                total_prospect: 0, 
+                total_reuniao: 0, 
+                perdida_venda: 0, 
+                perdida_reuniao: 0
+            };
+            
+            lossMap[ch].total_prospect += parseInt(i.count_prospect) || 0;
+            lossMap[ch].total_reuniao += parseInt(i.count_reuniao) || 0;
+            lossMap[ch].perdida_venda += parseInt(i.count_venda_perdida) || 0;
+            lossMap[ch].perdida_reuniao += parseInt(i.count_reuniao_perdida) || 0;
+        });
         
-        // Percentual de Perdas por Canal: Vendas Perdidas / Total Prospects
-        const txPerda = s.total_prospect > 0 ? (s.perdida_venda / s.total_prospect) * 100 : 0;
-        
-        // Percentual de No-Show por Canal: Reunião Perdida / Reunião Agendada
-        const txNoshow = s.total_reuniao > 0 ? (s.perdida_reuniao / s.total_reuniao) * 100 : 0;
+        const dataArr = Object.keys(lossMap).map(ch => {
+            const s = lossMap[ch]; 
+            const txPerda = s.total_prospect > 0 ? (s.perdida_venda / s.total_prospect) * 100 : 0;
+            const txNoshow = s.total_reuniao > 0 ? (s.perdida_reuniao / s.total_reuniao) * 100 : 0;
 
-        return { 
-            ch, 
-            txPerda, 
-            txNoshow, 
-            perdAbs: s.perdida_venda, 
-            noshowAbs: s.perdida_reuniao,
-            prospects: s.total_prospect,
-            reunioes: s.total_reuniao
-        };
-    });
-    
-    pContainer.innerHTML = ''; 
-    nContainer.innerHTML = '';
-    
-    if(dataArr.length===0) { 
-        pContainer.innerHTML = nContainer.innerHTML = '<div style="text-align:center;color:#666">Sem dados</div>'; 
-        return; 
+            return { ch, txPerda, txNoshow, perdAbs: s.perdida_venda, noshowAbs: s.perdida_reuniao, prospects: s.total_prospect, reunioes: s.total_reuniao };
+        });
+        
+        pContainer.innerHTML = ''; 
+        nContainer.innerHTML = '';
+        
+        if(dataArr.length===0) { 
+            pContainer.innerHTML = nContainer.innerHTML = '<div style="text-align:center;color:#666">Sem dados</div>'; 
+        } else {
+            dataArr.sort((a,b)=>b.txPerda - a.txPerda).forEach(i => {
+                const w = Math.min(i.txPerda, 100); 
+                const c = i.txPerda >= 20 ? 'high' : (i.txPerda >= 10 ? 'medium' : 'low');
+                pContainer.innerHTML += `<div class="loss-bar-item">
+                    <span class="loss-bar-name">${i.ch}</span>
+                    <div class="loss-bar-track">
+                        <div class="loss-bar-fill ${c}" style="width:${w}%" data-tooltip="${i.perdAbs} perdas de ${i.prospects} prospects (${i.txPerda.toFixed(1)}%)"></div>
+                    </div>
+                    <span class="loss-bar-value">${i.txPerda.toFixed(1)}%</span>
+                </div>`;
+            });
+            
+            dataArr.sort((a,b)=>b.txNoshow - a.txNoshow).forEach(i => {
+                const w = Math.min(i.txNoshow, 100); 
+                const c = i.txNoshow >= 20 ? 'high' : (i.txNoshow >= 10 ? 'medium' : 'low');
+                nContainer.innerHTML += `<div class="loss-bar-item">
+                    <span class="loss-bar-name">${i.ch}</span>
+                    <div class="loss-bar-track">
+                        <div class="loss-bar-fill ${c}" style="width:${w}%" data-tooltip="${i.noshowAbs} perdidas de ${i.reunioes} agendadas (${i.txNoshow.toFixed(1)}%)"></div>
+                    </div>
+                    <span class="loss-bar-value">${i.txNoshow.toFixed(1)}%</span>
+                </div>`;
+            });
+        }
     }
-    
-    dataArr.sort((a,b)=>b.txPerda - a.txPerda).forEach(i => {
-        const w = Math.min(i.txPerda, 100); 
-        const c = i.txPerda >= 20 ? 'high' : (i.txPerda >= 10 ? 'medium' : 'low');
-        pContainer.innerHTML += `<div class="loss-bar-item">
-            <span class="loss-bar-name">${i.ch}</span>
-            <div class="loss-bar-track">
-                <div class="loss-bar-fill ${c}" style="width:${w}%" data-tooltip="${i.perdAbs} perdas de ${i.prospects} prospects (${i.txPerda.toFixed(1)}%)"></div>
-            </div>
-            <span class="loss-bar-value">${i.txPerda.toFixed(1)}%</span>
-        </div>`;
-    });
-    
-    dataArr.sort((a,b)=>b.txNoshow - a.txNoshow).forEach(i => {
-        const w = Math.min(i.txNoshow, 100); 
-        const c = i.txNoshow >= 20 ? 'high' : (i.txNoshow >= 10 ? 'medium' : 'low');
-        nContainer.innerHTML += `<div class="loss-bar-item">
-            <span class="loss-bar-name">${i.ch}</span>
-            <div class="loss-bar-track">
-                <div class="loss-bar-fill ${c}" style="width:${w}%" data-tooltip="${i.noshowAbs} perdidas de ${i.reunioes} agendadas (${i.txNoshow.toFixed(1)}%)"></div>
-            </div>
-            <span class="loss-bar-value">${i.txNoshow.toFixed(1)}%</span>
-        </div>`;
-    });
+
+    // 2. Renderizar Motivos de Perda (Direita) - Novo
+    const mContainer = document.getElementById('motivos-perda-container');
+    if(mContainer) {
+        // Mapear ID -> Nome
+        const idToReason = {};
+        if (DATA_CACHE.lossReasons) {
+            DATA_CACHE.lossReasons.forEach(r => {
+                // Tenta adaptar campos comuns de retorno
+                const id = r.id || r.loss_reason_id || r['id motivo'];
+                const name = r.name || r.nome || r.title || 'Motivo Desconhecido';
+                if(id) idToReason[id] = name;
+            });
+        }
+
+        // Agregar contagens
+        const reasonsAgg = {};
+        let totalLosses = 0;
+
+        // Filtra dados de perda (assumindo que lossData tem estrutura compatível)
+        const lossDataFiltered = applyFilters(DATA_CACHE.lossData || []);
+
+        lossDataFiltered.forEach(item => {
+            const id = item.loss_reason_id || item.id_motivo || item.id;
+            const qtd = parseInt(item.count || item.qtd || item.count_venda_perdida || 0); // Ajuste conforme campo real
+
+            if (qtd > 0) {
+                const name = idToReason[id] || `Motivo #${id}` || item.loss_reason_name || 'Não especificado';
+                if (!reasonsAgg[name]) reasonsAgg[name] = 0;
+                reasonsAgg[name] += qtd;
+                totalLosses += qtd;
+            }
+        });
+
+        mContainer.innerHTML = '';
+        const entries = Object.entries(reasonsAgg).sort((a,b) => b[1] - a[1]);
+
+        if (entries.length === 0) {
+            mContainer.innerHTML = '<div style="text-align:center;color:#666;margin:auto;">Sem dados de motivos</div>';
+        } else {
+            entries.forEach(([name, count]) => {
+                // Cálculo de percentual relativo ao total de perdas
+                const perc = totalLosses > 0 ? (count / totalLosses) * 100 : 0;
+                const w = Math.min(perc, 100);
+                
+                mContainer.innerHTML += `
+                <div class="loss-bar-item">
+                    <span class="loss-bar-name" style="width: 140px;">${name}</span>
+                    <div class="loss-bar-track">
+                        <div class="loss-bar-fill medium" style="width:${w}%" data-tooltip="${count} ocorrências (${perc.toFixed(1)}%)"></div>
+                    </div>
+                    <span class="loss-bar-value">${count}</span>
+                </div>`;
+            });
+        }
+    }
 }
