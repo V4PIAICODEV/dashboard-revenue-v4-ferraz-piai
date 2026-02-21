@@ -121,3 +121,45 @@ span.flatpickr-weekday { background: transparent !important; color: #888 !import
 .filter-select-small { background: #0d0d0d; border: 1px solid #2a2a2a; color: #ccc; padding: 4px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; outline: none; margin-left: 5px; }
 .filter-select-small:focus { border-color: #ff0000; }
 .control-label { font-size: 11px; color: #888; font-weight: 500; }
+
+/* ================= TOGGLE BUTTON (KOMMO STYLE) ================= */
+.toggle-group {
+    display: flex;
+    background: #0d0d0d;
+    border: 1px solid #333;
+    border-radius: 4px;
+    overflow: hidden;
+    height: 38px;
+}
+.toggle-btn {
+    background: transparent;
+    color: #888;
+    border: none;
+    padding: 0 15px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    outline: none;
+}
+.toggle-btn:hover {
+    color: #ccc;
+}
+.toggle-btn.active {
+    background: #2a2a2a;
+    color: #fff;
+}
+
+/* ================= DRILLDOWN ================= */
+.expand-icon {
+    display: inline-block;
+    transition: transform 0.2s ease;
+    font-size: 10px;
+    color: #888;
+    margin-right: 6px;
+    width: 12px;
+    text-align: center;
+}
+.drilldown-parent:hover .expand-icon {
+    color: #fff;
+}
