@@ -752,21 +752,18 @@ function renderLossAnalysis() {
         const idToReason = {};
         if (DATA_CACHE.lossReasons) {
             DATA_CACHE.lossReasons.forEach(r => {
-                // Bug fix mapeamento: Tenta diversas propriedades comuns no JSON
                 const id = r.id || r.loss_reason_id || r.id_lostReason || r.id_lostreason || r['id motivo'];
                 const name = r.name || r.nome || r.title || r.name_lostreason || r.name_lostReason || r.text_value || 'Motivo Desconhecido';
                 if(id) idToReason[String(id)] = name;
             });
         }
 
-        const reasonsAgg = {};
+        const channelAgg = {}; 
         let totalLosses = 0;
         
-        // Pega os dados brutos filtrados 
         const lossDataFiltered = applyFilters(getActiveLoss() || []);
 
         lossDataFiltered.forEach(item => {
-            // Busca os campos exatamente como vêm no webhook
             const id = item.id_lostreason || item.id_lostReason || item.loss_reason_id;
             const count = parseInt(item.count_perdas) || parseInt(item.count) || 0;
             const ch = item.canal_origem || 'Não identificado';
@@ -774,32 +771,33 @@ function renderLossAnalysis() {
             if (count > 0) {
                 let name = id ? (idToReason[String(id)] || `Motivo ID: ${id}`) : 'Motivo não informado';
                 
-                if (!reasonsAgg[name]) reasonsAgg[name] = { total: 0, channels: {} };
-                if (!reasonsAgg[name].channels[ch]) reasonsAgg[name].channels[ch] = 0;
+                // NOVO AGRUPAMENTO: Canal > Motivos
+                if (!channelAgg[ch]) channelAgg[ch] = { total: 0, reasons: {} };
+                if (!channelAgg[ch].reasons[name]) channelAgg[ch].reasons[name] = 0;
                 
-                reasonsAgg[name].total += count;
-                reasonsAgg[name].channels[ch] += count;
+                channelAgg[ch].total += count;
+                channelAgg[ch].reasons[name] += count;
                 totalLosses += count;
             }
         });
 
         mContainer.innerHTML = '';
-        const entries = Object.entries(reasonsAgg).sort((a,b) => b[1].total - a[1].total);
+        const entries = Object.entries(channelAgg).sort((a,b) => b[1].total - a[1].total);
 
         if (entries.length === 0) {
             mContainer.innerHTML = '<div style="text-align:center;color:#666;margin:auto;">Sem dados de motivos</div>';
         } else {
             let index = 0;
-            entries.forEach(([name, data]) => {
+            entries.forEach(([chName, data]) => {
                 const perc = totalLosses > 0 ? (data.total / totalLosses) * 100 : 0;
                 const w = Math.min(perc, 100);
                 
-                // LINHA PAI
+                // LINHA PAI (Canal)
                 let html = `
                 <div class="drilldown-group">
                     <div class="loss-bar-item drilldown-parent" onclick="toggleDrilldown('loss-child-${index}', this)" style="cursor:pointer; margin-bottom: 5px;">
                         <span class="expand-icon">▶</span>
-                        <span class="loss-bar-name" style="width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${name}">${name}</span>
+                        <span class="loss-bar-name" style="width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${chName}">${chName}</span>
                         <div class="loss-bar-track">
                             <div class="loss-bar-fill medium" style="width:${w}%" data-tooltip="${data.total} (${perc.toFixed(1)}%)"></div>
                         </div>
@@ -807,17 +805,17 @@ function renderLossAnalysis() {
                     </div>
                     <div class="loss-child-${index}" style="display:none; padding-left: 20px; margin-bottom: 12px;">`;
                 
-                // LINHAS FILHAS (CANAIS - DRILLDOWN)
-                Object.entries(data.channels).sort((a,b) => b[1] - a[1]).forEach(([ch, chCount]) => {
-                    const cPerc = data.total > 0 ? (chCount / data.total) * 100 : 0;
+                // LINHAS FILHAS (Motivos - DRILLDOWN)
+                Object.entries(data.reasons).sort((a,b) => b[1] - a[1]).forEach(([reasonName, reasonCount]) => {
+                    const cPerc = data.total > 0 ? (reasonCount / data.total) * 100 : 0;
                     const cw = Math.min(cPerc, 100);
                     html += `
                         <div class="loss-bar-item child-row" style="margin-bottom: 4px; opacity: 0.8;">
-                            <span class="loss-bar-name" style="font-size: 11px; color: #888; width: 110px;">↳ ${ch}</span>
+                            <span class="loss-bar-name" style="font-size: 11px; color: #888; width: 110px;" title="${reasonName}">↳ ${reasonName}</span>
                             <div class="loss-bar-track" style="height: 6px;">
-                                <div class="loss-bar-fill medium" style="width:${cw}%" data-tooltip="${chCount} (${cPerc.toFixed(1)}% do motivo)"></div>
+                                <div class="loss-bar-fill medium" style="width:${cw}%" data-tooltip="${reasonCount} (${cPerc.toFixed(1)}% do canal)"></div>
                             </div>
-                            <span class="loss-bar-value" style="font-size: 11px; color: #888;">${chCount}</span>
+                            <span class="loss-bar-value" style="font-size: 11px; color: #888;">${reasonCount}</span>
                         </div>`;
                 });
                 
