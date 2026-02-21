@@ -3,7 +3,8 @@ const GlobalFilter = {
     startDate: null,
     endDate: null,
     sdrId: 'all',
-    channelId: 'all'
+    channelId: 'all',
+    dateType: 'updated' // Alterna entre 'updated' e 'created'
 };
 
 let datePickerInstance = null;
@@ -24,7 +25,6 @@ function formatDateBr(dateString) {
     return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
 
-// PDF PG 3: Função para calcular dias úteis (não considerar finais de semana)
 function getBusinessDays(startDate, endDate) {
     let count = 0;
     const curDate = new Date(startDate.getTime());
@@ -44,6 +44,9 @@ function initializeDateFilterComponent() {
     const sdrSelect = document.getElementById('sdrFilter');
     const channelSelect = document.getElementById('channelFilter');
     const info = document.getElementById('selectionInfo');
+    
+    // Toggle de Data (Updated vs Created)
+    const toggleBtns = document.querySelectorAll('.toggle-btn');
 
     if(!display) return;
 
@@ -116,6 +119,16 @@ function initializeDateFilterComponent() {
         }
     });
 
+    // Eventos do Toggle de Data
+    toggleBtns.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            toggleBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            GlobalFilter.dateType = btn.dataset.type;
+            if(typeof renderAll === 'function') renderAll();
+        });
+    });
+
     if (sdrSelect) sdrSelect.addEventListener('change', (e) => { GlobalFilter.sdrId = e.target.value; if(typeof renderAll === 'function') renderAll(); });
     if (channelSelect) channelSelect.addEventListener('change', (e) => { GlobalFilter.channelId = e.target.value; if(typeof renderAll === 'function') renderAll(); });
 
@@ -166,6 +179,27 @@ function updateDisplayLabel() {
         txt.textContent = `${s} - ${e}`;
     }
 }
+
+// Global Drilldown Function
+window.toggleDrilldown = function(childClassName, element) {
+    const children = document.querySelectorAll('.' + childClassName);
+    const icon = element.querySelector('.expand-icon');
+    
+    if (children.length === 0) return;
+    const isCurrentlyHidden = children[0].style.display === 'none' || children[0].style.display === '';
+    
+    children.forEach(c => {
+        if (isCurrentlyHidden) {
+            c.style.display = c.tagName.toLowerCase() === 'tr' ? 'table-row' : 'block';
+        } else {
+            c.style.display = 'none';
+        }
+    });
+
+    if (icon) {
+        icon.style.transform = isCurrentlyHidden ? 'rotate(90deg)' : '';
+    }
+};
 
 function getBadgeClassPA(val) { return val < 20 ? 'red' : (val < 40 ? 'yellow' : 'green'); }
 function getBadgeClassAR(val) { return val < 70 ? 'red' : (val < 90 ? 'yellow' : 'green'); }

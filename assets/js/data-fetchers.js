@@ -1,51 +1,64 @@
 // URLs
 const WEBHOOKS = {
+    // Atualização (Padrão)
     unifiedData: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/view_funil_vendas_acumulado', 
     bantAnalysis: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/analise-bant',
+    viewMotivosPerdas: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/eeb6e911-d3a2-48fe-bba4-1be69dde309c', // URL atualizada
+    
+    // Criação (Safra)
+    unifiedDataCreated: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/funil-vendas-created_at',
+    bantAnalysisCreated: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/bant-created_at',
+    viewMotivosPerdasCreated: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/motivos-perca-created_at',
+
+    // Auxiliares
     metas: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/metas_prevendas',
     lastUpdate: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/last_update',
-    
-    // Novos Webhooks
     lostReasonMap: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/lost-reason-map',
-    viewMotivosPerdas: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/view-motivos-perdas',
     viewProspectAtual: 'https://ferrazpiai-n8n-editor.uyk8ty.easypanel.host/webhook/view_prospect_atual'
 };
 
 const DATA_CACHE = {
-    unified: [], 
-    bant: [], 
+    unified_updated: [], 
+    unified_created: [],
+    bant_updated: [], 
+    bant_created: [],
+    lossData_updated: [],
+    lossData_created: [],
     metas: [], 
     lastUpdate: null,
     lossReasons: [],
-    lossData: [],
     prospectsBucket: []
 };
 
 async function loadAllData() {
     try {
-        // Buscas paralelas com tratamento de erro individual para não quebrar tudo se um falhar
         const responses = await Promise.all([
-            fetch(WEBHOOKS.metas).then(r => r.json()).catch(e => ({ data: [] })),
-            fetch(WEBHOOKS.unifiedData).then(r => r.json()).catch(e => ({ data: [] })),
-            fetch(WEBHOOKS.bantAnalysis).then(r => r.json()).catch(e => ({ data: [] })),
-            fetch(WEBHOOKS.lastUpdate).then(r => r.json()).catch(e => ({ data: [] })),
-            fetch(WEBHOOKS.lostReasonMap).then(r => r.json()).catch(e => ({ data: [] })),
-            fetch(WEBHOOKS.viewMotivosPerdas).then(r => r.json()).catch(e => ({ data: [] })),
-            fetch(WEBHOOKS.viewProspectAtual).then(r => r.json()).catch(e => ({ data: [] }))
+            fetch(WEBHOOKS.metas).then(r => r.json()).catch(e => ({ data: [] })), // 0
+            fetch(WEBHOOKS.unifiedData).then(r => r.json()).catch(e => ({ data: [] })), // 1
+            fetch(WEBHOOKS.unifiedDataCreated).then(r => r.json()).catch(e => ({ data: [] })), // 2
+            fetch(WEBHOOKS.bantAnalysis).then(r => r.json()).catch(e => ({ data: [] })), // 3
+            fetch(WEBHOOKS.bantAnalysisCreated).then(r => r.json()).catch(e => ({ data: [] })), // 4
+            fetch(WEBHOOKS.lastUpdate).then(r => r.json()).catch(e => ({ data: [] })), // 5
+            fetch(WEBHOOKS.lostReasonMap).then(r => r.json()).catch(e => ({ data: [] })), // 6
+            fetch(WEBHOOKS.viewMotivosPerdas).then(r => r.json()).catch(e => ({ data: [] })), // 7
+            fetch(WEBHOOKS.viewMotivosPerdasCreated).then(r => r.json()).catch(e => ({ data: [] })), // 8
+            fetch(WEBHOOKS.viewProspectAtual).then(r => r.json()).catch(e => ({ data: [] })) // 9
         ]);
 
         DATA_CACHE.metas = getArr(responses[0]);
-        DATA_CACHE.unified = getArr(responses[1]);
-        DATA_CACHE.bant = getArr(responses[2]);
+        DATA_CACHE.unified_updated = getArr(responses[1]);
+        DATA_CACHE.unified_created = getArr(responses[2]);
+        DATA_CACHE.bant_updated = getArr(responses[3]);
+        DATA_CACHE.bant_created = getArr(responses[4]);
         
-        const upd = getArr(responses[3]);
+        const upd = getArr(responses[5]);
         if(upd && upd.length) DATA_CACHE.lastUpdate = upd[0].data_hora_ultimo_update;
 
-        DATA_CACHE.lossReasons = getArr(responses[4]);
-        DATA_CACHE.lossData = getArr(responses[5]);
-        DATA_CACHE.prospectsBucket = getArr(responses[6]);
+        DATA_CACHE.lossReasons = getArr(responses[6]);
+        DATA_CACHE.lossData_updated = getArr(responses[7]);
+        DATA_CACHE.lossData_created = getArr(responses[8]);
+        DATA_CACHE.prospectsBucket = getArr(responses[9]);
 
-        // Normalização e Renderização
         normalizeDataCache();
         populateDropdowns();
         renderAll();
@@ -58,14 +71,11 @@ async function loadAllData() {
 function getArr(json) { 
     if (!json) return [];
     if (Array.isArray(json)) {
-        // Se for array de objetos que contêm 'data' (comum no N8N: [{data: [...]}, {data: [...]}])
         if (json.length > 0 && json[0].data && Array.isArray(json[0].data)) {
-            // Retorna o conteúdo do primeiro item se for estrutura de paginação/agrupamento
             return json[0].data;
         }
         return json;
     }
-    // Se for objeto único { data: [...] }
     return json.data || []; 
 }
 
@@ -87,9 +97,9 @@ function normalizeDataCache() {
             }
         };
 
-        // Aprende identidades de todas as fontes disponíveis
         DATA_CACHE.metas.forEach(i => learnIdentity(i['user id'] || i.id, i.user || i.nome));
-        DATA_CACHE.unified.forEach(i => learnIdentity(i.sdr_id, i.sdr_name));
+        DATA_CACHE.unified_updated.forEach(i => learnIdentity(i.sdr_id, i.sdr_name));
+        DATA_CACHE.unified_created.forEach(i => learnIdentity(i.sdr_id, i.sdr_name));
         DATA_CACHE.prospectsBucket.forEach(i => learnIdentity(i.sdr_id, i.sdr_name));
         
         const patchItem = (item) => {
@@ -113,13 +123,21 @@ function normalizeDataCache() {
         };
 
         DATA_CACHE.metas.forEach(patchItem);
-        DATA_CACHE.unified.forEach(patchItem);
+        DATA_CACHE.unified_updated.forEach(patchItem);
+        DATA_CACHE.unified_created.forEach(patchItem);
         DATA_CACHE.prospectsBucket.forEach(patchItem);
+        
+        DATA_CACHE.lossData_updated.forEach(patchItem);
+        DATA_CACHE.lossData_created.forEach(patchItem);
+        
     } catch(e) { console.error("Erro no Normalize:", e); }
 }
 
+function getActiveUnified() { return GlobalFilter.dateType === 'created' ? DATA_CACHE.unified_created : DATA_CACHE.unified_updated; }
+function getActiveBant() { return GlobalFilter.dateType === 'created' ? DATA_CACHE.bant_created : DATA_CACHE.bant_updated; }
+function getActiveLoss() { return GlobalFilter.dateType === 'created' ? DATA_CACHE.lossData_created : DATA_CACHE.lossData_updated; }
+
 function renderAll() {
-    // Renderiza cada seção em bloco protegido
     try { renderLastUpdate(); } catch(e) { console.error("Erro LastUpdate:", e); }
     try { renderExecutiveView(); } catch(e) { console.error("Erro Executive:", e); }
     try { renderSdrPerformance(); } catch(e) { console.error("Erro SDR Perf:", e); }
@@ -132,13 +150,12 @@ function renderAll() {
 
 function applyFilters(data) {
     if (!data || data.length === 0) return [];
-    if (!GlobalFilter.startDate || !GlobalFilter.endDate) return data; // Se não tiver filtro, retorna tudo
+    if (!GlobalFilter.startDate || !GlobalFilter.endDate) return data;
     
     const start = new Date(GlobalFilter.startDate + 'T00:00:00');
     const end = new Date(GlobalFilter.endDate + 'T23:59:59');
 
     return data.filter(item => {
-        // Se tiver data de referência, filtra. Se não tiver, passa (ex: dados sem data)
         if (item.data_referencia) {
             const d = new Date(item.data_referencia + 'T12:00:00');
             if (d < start || d > end) return false;
@@ -161,12 +178,10 @@ function applyFilters(data) {
 function populateDropdowns() {
     const sdrSelect = document.getElementById('sdrFilter');
     if (sdrSelect) {
-        // Mantém a opção "Todos" e remove as outras
         while (sdrSelect.options.length > 1) sdrSelect.remove(1);
-        
         const uniqueSDRs = new Map();
         
-        [...DATA_CACHE.metas, ...DATA_CACHE.unified, ...DATA_CACHE.prospectsBucket].forEach(i => {
+        [...DATA_CACHE.metas, ...DATA_CACHE.unified_updated, ...DATA_CACHE.prospectsBucket].forEach(i => {
             const id = i.sdr_id || i['user id'] || i.id;
             const name = i.sdr_name || i.user || i.nome;
             if (id && name && String(id) !== '0') {
@@ -188,7 +203,7 @@ function populateDropdowns() {
     if (chSelect) {
         while (chSelect.options.length > 1) chSelect.remove(1);
         const unique = new Set();
-        DATA_CACHE.unified.forEach(i => {
+        DATA_CACHE.unified_updated.forEach(i => {
             if(i.canal_origem) unique.add(i.canal_origem);
         });
         unique.forEach(ch => {
@@ -205,7 +220,7 @@ function renderLastUpdate() {
 }
 
 function renderExecutiveView() {
-    const filtered = applyFilters(DATA_CACHE.unified);
+    const filtered = applyFilters(getActiveUnified());
     const dailyAgg = {};
     
     filtered.forEach(item => {
@@ -227,7 +242,6 @@ function renderExecutiveView() {
         targetMetas = targetMetas.filter(m => String(m['user id'] || m.id) === String(GlobalFilter.sdrId));
     }
     
-    // Identificar Mês/Ano para a Meta
     const mesAlvo = end.getMonth(); 
     const anoAlvo = end.getFullYear();
     const nomesMeses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -252,14 +266,7 @@ function renderExecutiveView() {
         }
     });
 
-    // Fallback: Se não achou meta com base na data, pega tudo filtrado (caso o JSON de metas seja simples)
-    if (metaMesInteiro === 0 && targetMetas.length > 0) {
-        // Lógica de fallback simples
-    }
-
     const paceIdealPeriodo = calculatePace(metaMesInteiro, end, anoAlvo, mesAlvo);
-
-    // Atualiza DOM
     updateExecutiveDOM(metaMesInteiro, realizado, paceIdealPeriodo, anoAlvo, mesAlvo);
 
     const granularity = document.getElementById('burnupGranularity')?.value || 'day';
@@ -319,7 +326,7 @@ function renderSdrPerformance() {
     
     const sdrMap = {};
     
-    DATA_CACHE.unified.forEach(i => {
+    getActiveUnified().forEach(i => {
         if (GlobalFilter.sdrId !== 'all') {
             const id = i.sdr_id || i.responsible_user_id || i.id || i['user id'];
             if ((!id || String(id) === '0') && GlobalFilter.sdrId !== 'all') return;
@@ -331,7 +338,10 @@ function renderSdrPerformance() {
         }
 
         const key = i.sdr_id && String(i.sdr_id) !== '0' ? i.sdr_id : (i.sdr_name || 'Desconhecido');
-        if(!sdrMap[key]) sdrMap[key] = { name: i.sdr_name || 'SDR', pTotal:0, r:0, v:0, ag_perd:0 };
+        const chName = i.canal_origem || i.canal_nome || 'Não identificado';
+
+        if(!sdrMap[key]) sdrMap[key] = { name: i.sdr_name || 'SDR', pTotal:0, r:0, v:0, ag_perd:0, channels: {} };
+        if(!sdrMap[key].channels[chName]) sdrMap[key].channels[chName] = { pTotal:0, r:0, v:0, ag_perd:0 };
         
         let isDateInPeriod = false;
         if(i.data_referencia) {
@@ -340,10 +350,20 @@ function renderSdrPerformance() {
         }
         
         if (isDateInPeriod) {
-            sdrMap[key].pTotal += parseInt(i.count_prospect)||0;
-            sdrMap[key].r += parseInt(i.count_reuniao)||0;
-            sdrMap[key].v += parseInt(i.count_venda_ganha)||0;
-            sdrMap[key].ag_perd += parseInt(i.count_reuniao_perdida)||0;
+            const p = parseInt(i.count_prospect)||0;
+            const r = parseInt(i.count_reuniao)||0;
+            const v = parseInt(i.count_venda_ganha)||0;
+            const ag = parseInt(i.count_reuniao_perdida)||0;
+
+            sdrMap[key].pTotal += p;
+            sdrMap[key].r += r;
+            sdrMap[key].v += v;
+            sdrMap[key].ag_perd += ag;
+
+            sdrMap[key].channels[chName].pTotal += p;
+            sdrMap[key].channels[chName].r += r;
+            sdrMap[key].channels[chName].v += v;
+            sdrMap[key].channels[chName].ag_perd += ag;
         }
         
         if (i.sdr_name && (!sdrMap[key].name || i.sdr_name.length > sdrMap[key].name.length)) {
@@ -353,10 +373,13 @@ function renderSdrPerformance() {
 
     tbody.innerHTML = '';
     
-    if(Object.keys(sdrMap).length === 0) {
+    const validSdrs = Object.values(sdrMap).filter(s => s.pTotal > 0 || s.r > 0 || s.v > 0 || s.ag_perd > 0);
+
+    if(validSdrs.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#888">Sem dados</td></tr>';
     } else {
-        Object.values(sdrMap).forEach(s => {
+        let index = 0;
+        validSdrs.forEach(s => {
             const pa = s.pTotal > 0 ? (s.r/s.pTotal)*100 : 0; 
             const ar = s.r > 0 ? (s.v/s.r)*100 : 0;
             const noshow = s.ag_perd;
@@ -365,8 +388,9 @@ function renderSdrPerformance() {
             if(pa<20 || ar<70) st='red';
             else if(pa<40 || ar<90) st='yellow';
             
-            tbody.innerHTML += `<tr>
-                <td><span class="status-dot ${st}"></span></td>
+            // Renderiza o SDR Principal (Pai) com Drilldown
+            tbody.innerHTML += `<tr class="drilldown-parent" onclick="toggleDrilldown('sdr-child-${index}', this)" style="cursor: pointer;">
+                <td><span class="expand-icon">▶</span><span class="status-dot ${st}"></span></td>
                 <td class="sinaleiro-name">${s.name}</td>
                 <td>${s.pTotal}</td>
                 <td>${s.r}</td>
@@ -375,6 +399,28 @@ function renderSdrPerformance() {
                 <td><span class="badge ${getBadgeClassAR(ar)}">${ar.toFixed(1)}%</span></td>
                 <td><span class="badge ${noshow >= 3 ? 'red' : (noshow >= 1 ? 'yellow' : 'green')}">${Math.max(0, noshow)}</span></td>
             </tr>`;
+
+            // Renderiza os Canais do SDR (Filhos)
+            Object.keys(s.channels).sort((a,b) => s.channels[b].pTotal - s.channels[a].pTotal).forEach(ch => {
+                const cData = s.channels[ch];
+                if (cData.pTotal === 0 && cData.r === 0 && cData.v === 0 && cData.ag_perd === 0) return;
+
+                const cpa = cData.pTotal > 0 ? (cData.r/cData.pTotal)*100 : 0;
+                const car = cData.r > 0 ? (cData.v/cData.r)*100 : 0;
+                const cnoshow = cData.ag_perd;
+
+                tbody.innerHTML += `<tr class="sdr-child-${index}" style="display:none; background: #0a0a0a;">
+                    <td></td>
+                    <td style="padding-left: 20px; font-size: 11px; color: #888;">↳ ${ch}</td>
+                    <td style="font-size: 11px; color: #ccc;">${cData.pTotal}</td>
+                    <td style="font-size: 11px; color: #ccc;">${cData.r}</td>
+                    <td><span class="badge ${getBadgeClassPA(cpa)}" style="font-size:10px;">${cpa.toFixed(1)}%</span></td>
+                    <td style="font-size: 11px; color: #ccc;">${cData.v}</td>
+                    <td><span class="badge ${getBadgeClassAR(car)}" style="font-size:10px;">${car.toFixed(1)}%</span></td>
+                    <td><span class="badge ${cnoshow >= 3 ? 'red' : (cnoshow >= 1 ? 'yellow' : 'green')}" style="font-size:10px;">${Math.max(0, cnoshow)}</span></td>
+                </tr>`;
+            });
+            index++;
         });
     }
 }
@@ -384,7 +430,6 @@ function renderProspectsBucket() {
     const totalEl = document.getElementById('balde-total-value');
     if (!container || !totalEl) return;
     
-    // Filtros de Pessoa e Canal se aplicam, Data NÃO.
     let data = DATA_CACHE.prospectsBucket || [];
     
     if (GlobalFilter.sdrId !== 'all') {
@@ -429,9 +474,10 @@ function renderProspectsBucket() {
 }
 
 function renderBantAnalysis() {
-    const filtered = applyFilters(DATA_CACHE.bant);
+    const filtered = applyFilters(getActiveBant());
     const distBody = document.getElementById('bant-distribution-body');
     const convBody = document.getElementById('bant-conversion-body');
+    
     const bantMap = { 4:{l:0,v:0}, 3:{l:0,v:0}, 2:{l:0,v:0}, 1:{l:0,v:0} };
     const sdrAgg = {};
     
@@ -439,14 +485,21 @@ function renderBantAnalysis() {
         const sc = parseInt(i.bant_score)||1; 
         const l = parseInt(i.total_leads)||0; 
         const v = parseInt(i.vendas)||0;
+        const sdr = i.sdr_name || 'Desconhecido';
+        const ch = i.canal_origem || 'Não identificado';
+
         if(bantMap[sc]) { bantMap[sc].l += l; bantMap[sc].v += v; }
-        const sdr = i.sdr_name || 'Desc';
-        if(!sdrAgg[sdr]) sdrAgg[sdr]={t:0, b4:0, b3:0, b2:0, b1:0};
-        sdrAgg[sdr].t += l; 
-        if(sc===4) sdrAgg[sdr].b4 += l; 
-        if(sc===3) sdrAgg[sdr].b3 += l; 
-        if(sc===2) sdrAgg[sdr].b2 += l; 
-        if(sc===1) sdrAgg[sdr].b1 += l;
+        
+        if(!sdrAgg[sdr]) sdrAgg[sdr] = { t:0, b4:0, b3:0, b2:0, b1:0, channels: {} };
+        if(!sdrAgg[sdr].channels[ch]) sdrAgg[sdr].channels[ch] = { t:0, b4:0, b3:0, b2:0, b1:0 };
+
+        sdrAgg[sdr].t += l;
+        sdrAgg[sdr].channels[ch].t += l;
+
+        if(sc===4) { sdrAgg[sdr].b4 += l; sdrAgg[sdr].channels[ch].b4 += l; }
+        if(sc===3) { sdrAgg[sdr].b3 += l; sdrAgg[sdr].channels[ch].b3 += l; }
+        if(sc===2) { sdrAgg[sdr].b2 += l; sdrAgg[sdr].channels[ch].b2 += l; }
+        if(sc===1) { sdrAgg[sdr].b1 += l; sdrAgg[sdr].channels[ch].b1 += l; }
     });
     
     [4,3,2,1].forEach(i => {
@@ -462,6 +515,7 @@ function renderBantAnalysis() {
     if(!Object.keys(sdrAgg).length) {
         distBody.innerHTML = '<tr><td colspan="7" style="text-align:center">Sem dados</td></tr>';
     } else {
+        let index = 0;
         Object.keys(sdrAgg).forEach(s => {
             const d = sdrAgg[s];
             const p4 = d.t > 0 ? (d.b4/d.t)*100 : 0;
@@ -469,8 +523,9 @@ function renderBantAnalysis() {
             const p2 = d.t > 0 ? (d.b2/d.t)*100 : 0;
             const p1 = d.t > 0 ? (d.b1/d.t)*100 : 0;
             
-            distBody.innerHTML += `<tr>
-                <td>${s}</td>
+            // LINHA PAI
+            distBody.innerHTML += `<tr class="drilldown-parent" onclick="toggleDrilldown('bant-child-${index}', this)" style="cursor: pointer;">
+                <td><span class="expand-icon">▶</span>${s}</td>
                 <td><span class="badge green">${d.b4}</span></td>
                 <td><span class="badge blue">${d.b3}</span></td>
                 <td><span class="badge yellow">${d.b2}</span></td>
@@ -485,6 +540,33 @@ function renderBantAnalysis() {
                     </div>
                 </td>
             </tr>`;
+
+            // LINHAS FILHAS (CANAIS - DRILLDOWN)
+            Object.keys(d.channels).sort((a,b) => d.channels[b].t - d.channels[a].t).forEach(ch => {
+                const cData = d.channels[ch];
+                const cp4 = cData.t > 0 ? (cData.b4/cData.t)*100 : 0;
+                const cp3 = cData.t > 0 ? (cData.b3/cData.t)*100 : 0;
+                const cp2 = cData.t > 0 ? (cData.b2/cData.t)*100 : 0;
+                const cp1 = cData.t > 0 ? (cData.b1/cData.t)*100 : 0;
+
+                distBody.innerHTML += `<tr class="bant-child-${index}" style="display:none; background: #0a0a0a;">
+                    <td style="padding-left: 25px; font-size: 11px; color: #888;">↳ ${ch}</td>
+                    <td><span style="color:#22c55e; font-size:11px;">${cData.b4}</span></td>
+                    <td><span style="color:#3b82f6; font-size:11px;">${cData.b3}</span></td>
+                    <td><span style="color:#fbbf24; font-size:11px;">${cData.b2}</span></td>
+                    <td><span style="color:#ef4444; font-size:11px;">${cData.b1}</span></td>
+                    <td style="font-size: 11px;">${cData.t}</td>
+                    <td>
+                        <div class="bant-bar" style="height: 6px; opacity: 0.7;">
+                            <div class="bant-bar-segment b4" style="width:${cp4}%" data-tooltip="${cData.b4} (${cp4.toFixed(0)}%)"></div>
+                            <div class="bant-bar-segment b3" style="width:${cp3}%" data-tooltip="${cData.b3} (${cp3.toFixed(0)}%)"></div>
+                            <div class="bant-bar-segment b2" style="width:${cp2}%" data-tooltip="${cData.b2} (${cp2.toFixed(0)}%)"></div>
+                            <div class="bant-bar-segment b1" style="width:${cp1}%" data-tooltip="${cData.b1} (${cp1.toFixed(0)}%)"></div>
+                        </div>
+                    </td>
+                </tr>`;
+            });
+            index++;
         });
     }
     
@@ -511,7 +593,7 @@ function renderChannelPerformance() {
     const thead = document.getElementById('channel-matrix-head');
     if(!eff) return;
 
-    const filtered = applyFilters(DATA_CACHE.unified);
+    const filtered = applyFilters(getActiveUnified());
     const chStats = {}; const sdrMatrix = {}; const allCh = new Set();
     
     filtered.forEach(i => {
@@ -581,7 +663,7 @@ function renderChannelPerformance() {
 }
 
 function renderFunnelData() {
-    const filtered = applyFilters(DATA_CACHE.unified);
+    const filtered = applyFilters(getActiveUnified());
     const c = { prospect: 0, tentativa: 0, conectado: 0, reuniao: 0, venda: 0, sum_days: 0, count_days: 0 };
     
     filtered.forEach(i => {
@@ -634,43 +716,30 @@ function updateConversion(s, b, v, label) {
 }
 
 function renderLossAnalysis() {
-    // 1. Renderizar Gráficos de Canal (Esquerda e Baixo agora no novo layout)
-    const pContainer = document.getElementById('perdas-canal-container');
     const nContainer = document.getElementById('noshow-canal-container');
+    const mContainer = document.getElementById('motivos-perda-container');
     
-    if(pContainer && nContainer) {
-        const filtered = applyFilters(DATA_CACHE.unified);
+    if(nContainer) {
+        const filteredUnified = applyFilters(getActiveUnified());
         const lossMap = {};
         
-        filtered.forEach(i => {
+        filteredUnified.forEach(i => {
             const ch = i.canal_origem || 'Não identificado';
-            if(!lossMap[ch]) lossMap[ch] = {total_prospect:0, total_reuniao:0, perdida_venda:0, perdida_reuniao:0};
-            lossMap[ch].total_prospect += parseInt(i.count_prospect) || 0;
+            if(!lossMap[ch]) lossMap[ch] = {total_reuniao:0, perdida_reuniao:0};
             lossMap[ch].total_reuniao += parseInt(i.count_reuniao) || 0;
-            lossMap[ch].perdida_venda += parseInt(i.count_venda_perdida) || 0;
             lossMap[ch].perdida_reuniao += parseInt(i.count_reuniao_perdida) || 0;
         });
         
         const dataArr = Object.keys(lossMap).map(ch => {
             const s = lossMap[ch]; 
-            const txPerda = s.total_prospect > 0 ? (s.perdida_venda / s.total_prospect) * 100 : 0;
             const txNoshow = s.total_reuniao > 0 ? (s.perdida_reuniao / s.total_reuniao) * 100 : 0;
-            return { ch, txPerda, txNoshow, perdAbs: s.perdida_venda, noshowAbs: s.perdida_reuniao, prospects: s.total_prospect, reunioes: s.total_reuniao };
+            return { ch, txNoshow, noshowAbs: s.perdida_reuniao };
         });
         
-        pContainer.innerHTML = ''; 
         nContainer.innerHTML = '';
-        
         if(dataArr.length===0) { 
-            pContainer.innerHTML = nContainer.innerHTML = '<div style="text-align:center;color:#666">Sem dados no período</div>'; 
+            nContainer.innerHTML = '<div style="text-align:center;color:#666">Sem dados no período</div>'; 
         } else {
-            // Renderiza Perdas (Agora expandido embaixo)
-            dataArr.sort((a,b)=>b.txPerda - a.txPerda).forEach(i => {
-                const w = Math.min(i.txPerda, 100); 
-                const c = i.txPerda >= 20 ? 'high' : (i.txPerda >= 10 ? 'medium' : 'low');
-                pContainer.innerHTML += `<div class="loss-bar-item"><span class="loss-bar-name">${i.ch}</span><div class="loss-bar-track"><div class="loss-bar-fill ${c}" style="width:${w}%" data-tooltip="${i.perdAbs} perdas (${i.txPerda.toFixed(1)}%)"></div></div><span class="loss-bar-value">${i.txPerda.toFixed(1)}%</span></div>`;
-            });
-            // Renderiza No-Show (Agora no topo esquerdo)
             dataArr.sort((a,b)=>b.txNoshow - a.txNoshow).forEach(i => {
                 const w = Math.min(i.txNoshow, 100); 
                 const c = i.txNoshow >= 20 ? 'high' : (i.txNoshow >= 10 ? 'medium' : 'low');
@@ -679,49 +748,80 @@ function renderLossAnalysis() {
         }
     }
 
-    // 2. Renderizar Motivos de Perda (Topo Direita) - CORRIGIDO MAPEAMENTO
-    const mContainer = document.getElementById('motivos-perda-container');
     if(mContainer) {
         const idToReason = {};
         if (DATA_CACHE.lossReasons) {
             DATA_CACHE.lossReasons.forEach(r => {
-                // ALTERAÇÃO AQUI: Adicionado suporte para 'id_lostReason' e 'name_lostreason'
-                const id = r.id || r.loss_reason_id || r['id motivo'] || r.id_lostReason;
-                const name = r.name || r.nome || r.title || r.text_value || r.name_lostreason || 'Motivo Desconhecido';
-                
+                const id = r.id || r.loss_reason_id || r.id_lostReason || r.id_lostreason || r['id motivo'];
+                const name = r.name || r.nome || r.title || r.name_lostreason || r.name_lostReason || r.text_value || 'Motivo Desconhecido';
                 if(id) idToReason[String(id)] = name;
             });
         }
 
-        const reasonsAgg = {};
+        const channelAgg = {}; 
         let totalLosses = 0;
         
-        const lossDataFiltered = applyFilters(DATA_CACHE.lossData || []);
+        const lossDataFiltered = applyFilters(getActiveLoss() || []);
 
         lossDataFiltered.forEach(item => {
-            const id = item.id_lostreason;
-            const count = parseInt(item.count_perdas) || 0;
+            const id = item.id_lostreason || item.id_lostReason || item.loss_reason_id;
+            const count = parseInt(item.count_perdas) || parseInt(item.count) || 0;
+            const ch = item.canal_origem || 'Não identificado';
 
             if (count > 0) {
-                // Tenta buscar pelo ID mapeado
-                let name = id ? (idToReason[String(id)] || `ID: ${id}`) : 'Não identificado';
+                let name = id ? (idToReason[String(id)] || `Motivo ID: ${id}`) : 'Motivo não informado';
                 
-                if (!reasonsAgg[name]) reasonsAgg[name] = 0;
-                reasonsAgg[name] += count;
+                // NOVO AGRUPAMENTO: Canal > Motivos
+                if (!channelAgg[ch]) channelAgg[ch] = { total: 0, reasons: {} };
+                if (!channelAgg[ch].reasons[name]) channelAgg[ch].reasons[name] = 0;
+                
+                channelAgg[ch].total += count;
+                channelAgg[ch].reasons[name] += count;
                 totalLosses += count;
             }
         });
 
         mContainer.innerHTML = '';
-        const entries = Object.entries(reasonsAgg).sort((a,b) => b[1] - a[1]);
+        const entries = Object.entries(channelAgg).sort((a,b) => b[1].total - a[1].total);
 
         if (entries.length === 0) {
             mContainer.innerHTML = '<div style="text-align:center;color:#666;margin:auto;">Sem dados de motivos</div>';
         } else {
-            entries.forEach(([name, count]) => {
-                const perc = totalLosses > 0 ? (count / totalLosses) * 100 : 0;
+            let index = 0;
+            entries.forEach(([chName, data]) => {
+                const perc = totalLosses > 0 ? (data.total / totalLosses) * 100 : 0;
                 const w = Math.min(perc, 100);
-                mContainer.innerHTML += `<div class="loss-bar-item"><span class="loss-bar-name" style="width: 140px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${name}">${name}</span><div class="loss-bar-track"><div class="loss-bar-fill medium" style="width:${w}%" data-tooltip="${count} (${perc.toFixed(1)}%)"></div></div><span class="loss-bar-value">${count}</span></div>`;
+                
+                // LINHA PAI (Canal)
+                let html = `
+                <div class="drilldown-group">
+                    <div class="loss-bar-item drilldown-parent" onclick="toggleDrilldown('loss-child-${index}', this)" style="cursor:pointer; margin-bottom: 5px;">
+                        <span class="expand-icon">▶</span>
+                        <span class="loss-bar-name" style="width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${chName}">${chName}</span>
+                        <div class="loss-bar-track">
+                            <div class="loss-bar-fill medium" style="width:${w}%" data-tooltip="${data.total} (${perc.toFixed(1)}%)"></div>
+                        </div>
+                        <span class="loss-bar-value">${data.total}</span>
+                    </div>
+                    <div class="loss-child-${index}" style="display:none; padding-left: 20px; margin-bottom: 12px;">`;
+                
+                // LINHAS FILHAS (Motivos - DRILLDOWN)
+                Object.entries(data.reasons).sort((a,b) => b[1] - a[1]).forEach(([reasonName, reasonCount]) => {
+                    const cPerc = data.total > 0 ? (reasonCount / data.total) * 100 : 0;
+                    const cw = Math.min(cPerc, 100);
+                    html += `
+                        <div class="loss-bar-item child-row" style="margin-bottom: 4px; opacity: 0.8;">
+                            <span class="loss-bar-name" style="font-size: 11px; color: #888; width: 110px;" title="${reasonName}">↳ ${reasonName}</span>
+                            <div class="loss-bar-track" style="height: 6px;">
+                                <div class="loss-bar-fill medium" style="width:${cw}%" data-tooltip="${reasonCount} (${cPerc.toFixed(1)}% do canal)"></div>
+                            </div>
+                            <span class="loss-bar-value" style="font-size: 11px; color: #888;">${reasonCount}</span>
+                        </div>`;
+                });
+                
+                html += `</div></div>`;
+                mContainer.innerHTML += html;
+                index++;
             });
         }
     }
