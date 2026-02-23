@@ -141,6 +141,7 @@ function renderAll() {
     try { renderLastUpdate(); } catch(e) { console.error("Erro LastUpdate:", e); }
     try { renderExecutiveView(); } catch(e) { console.error("Erro Executive:", e); }
     try { renderSdrPerformance(); } catch(e) { console.error("Erro SDR Perf:", e); }
+    try { renderTierPerformance(); } catch(e) { console.error("Erro Tier Perf:", e); }
     try { renderBantAnalysis(); } catch(e) { console.error("Erro BANT:", e); }
     try { renderChannelPerformance(); } catch(e) { console.error("Erro Channel:", e); }
     try { renderFunnelData(); } catch(e) { console.error("Erro Funnel:", e); }
@@ -388,7 +389,6 @@ function renderSdrPerformance() {
             if(pa<20 || ar<70) st='red';
             else if(pa<40 || ar<90) st='yellow';
             
-            // Renderiza o SDR Principal (Pai) com Drilldown
             tbody.innerHTML += `<tr class="drilldown-parent" onclick="toggleDrilldown('sdr-child-${index}', this)" style="cursor: pointer;">
                 <td><span class="expand-icon">▶</span><span class="status-dot ${st}"></span></td>
                 <td class="sinaleiro-name">${s.name}</td>
@@ -400,7 +400,6 @@ function renderSdrPerformance() {
                 <td><span class="badge ${noshow >= 3 ? 'red' : (noshow >= 1 ? 'yellow' : 'green')}">${Math.max(0, noshow)}</span></td>
             </tr>`;
 
-            // Renderiza os Canais do SDR (Filhos)
             Object.keys(s.channels).sort((a,b) => s.channels[b].pTotal - s.channels[a].pTotal).forEach(ch => {
                 const cData = s.channels[ch];
                 if (cData.pTotal === 0 && cData.r === 0 && cData.v === 0 && cData.ag_perd === 0) return;
@@ -418,6 +417,138 @@ function renderSdrPerformance() {
                     <td style="font-size: 11px; color: #ccc;">${cData.v}</td>
                     <td><span class="badge ${getBadgeClassAR(car)}" style="font-size:10px;">${car.toFixed(1)}%</span></td>
                     <td><span class="badge ${cnoshow >= 3 ? 'red' : (cnoshow >= 1 ? 'yellow' : 'green')}" style="font-size:10px;">${Math.max(0, cnoshow)}</span></td>
+                </tr>`;
+            });
+            index++;
+        });
+    }
+}
+
+function getTierWeight(tierName) {
+    const name = String(tierName).toLowerCase();
+    if (name.includes("tiny")) return 1;
+    if (name.includes("small")) return 2;
+    if (name.includes("medium")) return 3;
+    if (name.includes("large")) {
+        // Suporte para variação de Large se houver diferença pelo valor (ex: 200 vs 480)
+        if(name.includes("200")) return 4;
+        if(name.includes("480")) return 5;
+        return 4; 
+    }
+    if (name.includes("enterprise")) return 6;
+    return 99; // Para o "Não identificado" ou outros não mapeados
+}
+
+function renderTierPerformance() {
+    const tbody = document.getElementById('tier-performance-body');
+    if(!tbody) return;
+
+    const start = new Date(GlobalFilter.startDate + 'T00:00:00');
+    const end = new Date(GlobalFilter.endDate + 'T23:59:59');
+
+    const tierMap = {};
+
+    getActiveUnified().forEach(i => {
+        if (GlobalFilter.sdrId !== 'all') {
+            const id = i.sdr_id || i.responsible_user_id || i.id || i['user id'];
+            if ((!id || String(id) === '0') && GlobalFilter.sdrId !== 'all') return;
+            if (id && String(id) !== String(GlobalFilter.sdrId)) return;
+        }
+        if (GlobalFilter.channelId !== 'all') {
+            const ch = i.canal_origem || i.canal_nome || 'Não identificado';
+            if (ch !== GlobalFilter.channelId) return;
+        }
+
+        let isDateInPeriod = false;
+        if(i.data_referencia) {
+            const dataRef = new Date(i.data_referencia + 'T12:00:00');
+            if(dataRef >= start && dataRef <= end) isDateInPeriod = true;
+        }
+
+        if (isDateInPeriod) {
+            const tName = i.tier || 'Não identificado';
+            const drillKey = GlobalFilter.tierDrilldown === 'sdr' ? (i.sdr_name || 'Desconhecido') : (i.canal_origem || 'Não identificado');
+
+            if(!tierMap[tName]) tierMap[tName] = { name: tName, pTotal:0, r:0, v:0, noshow:0, perdidas:0, drill: {} };
+            if(!tierMap[tName].drill[drillKey]) tierMap[tName].drill[drillKey] = { pTotal:0, r:0, v:0, noshow:0, perdidas:0 };
+
+            // Precisamos dos Prospects (p) apenas para o cálculo da conversão P->A
+            const p = parseInt(i.count_prospect)||0;
+            const r = parseInt(i.count_reuniao)||0;
+            const v = parseInt(i.count_venda_ganha)||0;
+            const noshow = parseInt(i.count_reuniao_perdida)||0;
+            const perd = parseInt(i.count_venda_perdida)||0;
+
+            tierMap[tName].pTotal += p;
+            tierMap[tName].r += r;
+            tierMap[tName].v += v;
+            tierMap[tName].noshow += noshow;
+            tierMap[tName].perdidas += perd;
+
+            tierMap[tName].drill[drillKey].pTotal += p;
+            tierMap[tName].drill[drillKey].r += r;
+            tierMap[tName].drill[drillKey].v += v;
+            tierMap[tName].drill[drillKey].noshow += noshow;
+            tierMap[tName].drill[drillKey].perdidas += perd;
+        }
+    });
+
+    tbody.innerHTML = '';
+    
+    // Filtrar os Tiers que possuem dados
+    let validTiers = Object.values(tierMap).filter(t => t.pTotal > 0 || t.r > 0 || t.v > 0 || t.noshow > 0 || t.perdidas > 0);
+    
+    // Filtro do Botão Mostrar/Ocultar "Não identificado"
+    if (!GlobalFilter.showUnidentifiedTier) {
+        validTiers = validTiers.filter(t => t.name !== 'Não identificado');
+    }
+
+    if(validTiers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#888">Sem dados</td></tr>';
+    } else {
+        let index = 0;
+        
+        // Ordenação por Peso (Tiny -> Small -> Medium -> Large -> Enterprise)
+        validTiers.sort((a,b) => {
+            const wA = getTierWeight(a.name);
+            const wB = getTierWeight(b.name);
+            if (wA === wB) return a.name.localeCompare(b.name); // Empate de nomes idênticos/pesos idênticos
+            return wA - wB;
+        }).forEach(t => {
+            const pa = t.pTotal > 0 ? (t.r/t.pTotal)*100 : 0;
+            const ar = t.r > 0 ? (t.v/t.r)*100 : 0;
+
+            let st='green';
+            if(pa<20 || ar<70) st='red';
+            else if(pa<40 || ar<90) st='yellow';
+
+            tbody.innerHTML += `<tr class="drilldown-parent" onclick="toggleDrilldown('tier-child-${index}', this)" style="cursor: pointer;">
+                <td><span class="expand-icon">▶</span><span class="status-dot ${st}"></span></td>
+                <td class="sinaleiro-name">${t.name}</td>
+                <td>${t.r}</td>
+                <td><span class="badge ${getBadgeClassPA(pa)}">${pa.toFixed(1)}%</span></td>
+                <td>${t.v}</td>
+                <td><span class="badge ${getBadgeClassAR(ar)}">${ar.toFixed(1)}%</span></td>
+                <td><span class="badge ${t.noshow >= 3 ? 'red' : (t.noshow >= 1 ? 'yellow' : 'green')}">${Math.max(0, t.noshow)}</span></td>
+                <td><span class="badge ${t.perdidas >= 3 ? 'red' : (t.perdidas >= 1 ? 'yellow' : 'green')}">${Math.max(0, t.perdidas)}</span></td>
+            </tr>`;
+
+            Object.keys(t.drill).sort((a,b) => t.drill[b].pTotal - t.drill[a].pTotal).forEach(dKey => {
+                const dData = t.drill[dKey];
+                if (dData.pTotal === 0 && dData.r === 0 && dData.v === 0 && dData.noshow === 0 && dData.perdidas === 0) return;
+
+                const dpa = dData.pTotal > 0 ? (dData.r/dData.pTotal)*100 : 0;
+                const dar = dData.r > 0 ? (dData.v/dData.r)*100 : 0;
+
+                tbody.innerHTML += `<tr class="tier-child-${index}" style="display:none; background: #0a0a0a;">
+                    <td></td>
+                    <td style="padding-left: 20px; font-size: 11px; color: #888;">↳ ${dKey}</td>
+                    <td style="font-size: 11px; color: #ccc;">${dData.r}</td>
+                    <td><span class="badge ${getBadgeClassPA(dpa)}" style="font-size:10px;">${dpa.toFixed(1)}%</span></td>
+                    <td style="font-size: 11px; color: #ccc;">${dData.v}</td>
+                    <td><span class="badge ${getBadgeClassAR(dar)}" style="font-size:10px;">${dar.toFixed(1)}%</span></td>
+                    <td><span class="badge ${dData.noshow >= 3 ? 'red' : (dData.noshow >= 1 ? 'yellow' : 'green')}" style="font-size:10px;">${Math.max(0, dData.noshow)}</span></td>
+                    <td><span class="badge ${dData.perdidas >= 3 ? 'red' : (dData.perdidas >= 1 ? 'yellow' : 'green')}" style="font-size:10px;">${Math.max(0, dData.perdidas)}</span></td>
                 </tr>`;
             });
             index++;
@@ -766,17 +897,20 @@ function renderLossAnalysis() {
         lossDataFiltered.forEach(item => {
             const id = item.id_lostreason || item.id_lostReason || item.loss_reason_id;
             const count = parseInt(item.count_perdas) || parseInt(item.count) || 0;
-            const ch = item.canal_origem || 'Não identificado';
+            
+            // Definição da Chave Base pelo botão do Drilldown escolhido
+            const groupKey = GlobalFilter.lossDrilldown === 'sdr' 
+                ? (item.sdr_name || 'Desconhecido') 
+                : (item.canal_origem || 'Não identificado');
 
             if (count > 0) {
                 let name = id ? (idToReason[String(id)] || `Motivo ID: ${id}`) : 'Motivo não informado';
                 
-                // NOVO AGRUPAMENTO: Canal > Motivos
-                if (!channelAgg[ch]) channelAgg[ch] = { total: 0, reasons: {} };
-                if (!channelAgg[ch].reasons[name]) channelAgg[ch].reasons[name] = 0;
+                if (!channelAgg[groupKey]) channelAgg[groupKey] = { total: 0, reasons: {} };
+                if (!channelAgg[groupKey].reasons[name]) channelAgg[groupKey].reasons[name] = 0;
                 
-                channelAgg[ch].total += count;
-                channelAgg[ch].reasons[name] += count;
+                channelAgg[groupKey].total += count;
+                channelAgg[groupKey].reasons[name] += count;
                 totalLosses += count;
             }
         });
@@ -788,16 +922,16 @@ function renderLossAnalysis() {
             mContainer.innerHTML = '<div style="text-align:center;color:#666;margin:auto;">Sem dados de motivos</div>';
         } else {
             let index = 0;
-            entries.forEach(([chName, data]) => {
+            entries.forEach(([groupName, data]) => {
                 const perc = totalLosses > 0 ? (data.total / totalLosses) * 100 : 0;
                 const w = Math.min(perc, 100);
                 
-                // LINHA PAI (Canal)
+                // LINHA PAI (Canal ou SDR Baseado na Chave)
                 let html = `
                 <div class="drilldown-group">
                     <div class="loss-bar-item drilldown-parent" onclick="toggleDrilldown('loss-child-${index}', this)" style="cursor:pointer; margin-bottom: 5px;">
                         <span class="expand-icon">▶</span>
-                        <span class="loss-bar-name" style="width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${chName}">${chName}</span>
+                        <span class="loss-bar-name" style="width: 130px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${groupName}">${groupName}</span>
                         <div class="loss-bar-track">
                             <div class="loss-bar-fill medium" style="width:${w}%" data-tooltip="${data.total} (${perc.toFixed(1)}%)"></div>
                         </div>
