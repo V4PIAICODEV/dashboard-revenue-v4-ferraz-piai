@@ -25,8 +25,14 @@
     </div>
 
     <div class="card" style="display: flex; flex-direction: column;">
-        <div class="card-title">Reuniões Perdidas por Motivo de Perda / Canal</div>
-        <div id="motivos-perda-container" style="flex: 1; min-height: 200px; display: flex; flex-direction: column; gap: 10px;">
+        <div class="card-header-controls">
+            <div class="card-title" style="margin-bottom: 0;">Reuniões Perdidas por Canal ou SDR / Motivo de Perda</div>
+            <div class="toggle-group" id="lossDrilldownToggle">
+                <button class="toggle-btn active" data-type="canal">Canal</button>
+                <button class="toggle-btn" data-type="sdr">SDR</button>
+            </div>
+        </div>
+        <div id="motivos-perda-container" style="flex: 1; min-height: 200px; display: flex; flex-direction: column; gap: 10px; margin-top: 15px;">
             <div style="text-align: center; color: #888; padding: 20px; margin: auto;">Carregando dados...</div>
         </div>
     </div>

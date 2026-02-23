@@ -43,3 +43,38 @@
         </div>
     </div>
 </div>
+
+<div class="card" style="margin-top: 20px;">
+    <div class="card-header-controls">
+        <div class="card-title" style="margin-bottom: 0;">Performance por Tier</div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <button class="toggle-btn active" id="unidentifiedTierToggle" style="border: 1px solid #333; border-radius: 4px; padding: 4px 10px; font-size: 11px;">Exibir "Não identificado"</button>
+            <div class="toggle-group" id="tierDrilldownToggle">
+                <button class="toggle-btn active" data-type="canal">Canal</button>
+                <button class="toggle-btn" data-type="sdr">SDR</button>
+            </div>
+        </div>
+    </div>
+    <table class="sinaleiro-table">
+        <thead>
+            <tr>
+                <th style="width: 50px;">Status</th>
+                <th>Tier</th>
+                <th>Agendadas</th>
+                <th>Conv. P→A</th>
+                <th>Realizadas</th>
+                <th>Conv. A→R</th>
+                <th>No-Show</th>
+                <th>Perdas</th>
+            </tr>
+        </thead>
+        <tbody id="tier-performance-body">
+            <tr><td colspan="8" style="text-align: center;">Carregando dados...</td></tr>
+        </tbody>
+    </table>
+    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #2a2a2a;">
+        <div style="font-size: 11px; color: #888; line-height: 1.6;">
+            <strong>Legenda:</strong> P→A (Prospect p/ Agendada), A→R (Agendada p/ Realizada) | Perdas (Venda Perdida)
+        </div>
+    </div>
+</div>

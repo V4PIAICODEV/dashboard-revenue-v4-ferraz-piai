@@ -4,7 +4,10 @@ const GlobalFilter = {
     endDate: null,
     sdrId: 'all',
     channelId: 'all',
-    dateType: 'updated' // Alterna entre 'updated' e 'created'
+    dateType: 'updated', // Alterna entre 'updated' e 'created'
+    tierDrilldown: 'canal', // Alterna o detalhamento de tier entre 'canal' ou 'sdr'
+    showUnidentifiedTier: true, // Mostra ou oculta o tier "Não identificado"
+    lossDrilldown: 'canal' // Alterna o agrupamento de perdas entre 'canal' ou 'sdr'
 };
 
 let datePickerInstance = null;
@@ -44,9 +47,6 @@ function initializeDateFilterComponent() {
     const sdrSelect = document.getElementById('sdrFilter');
     const channelSelect = document.getElementById('channelFilter');
     const info = document.getElementById('selectionInfo');
-    
-    // Toggle de Data (Updated vs Created)
-    const toggleBtns = document.querySelectorAll('.toggle-btn');
 
     if(!display) return;
 
@@ -89,9 +89,51 @@ function initializeDateFilterComponent() {
     });
 
     document.addEventListener('click', (e) => {
+        // Fecha Datepicker ao clicar fora
         if (!display.contains(e.target) && !popover.contains(e.target)) {
             popover.style.display = 'none';
             display.classList.remove('active');
+        }
+
+        // --- Delegação de Eventos para os Toggles (Garante que botões carregados no HTML dps via fetch funcionem) ---
+
+        // Toggle Data (Atualização/Criação)
+        const dateToggleBtn = e.target.closest('#dateTypeToggle .toggle-btn');
+        if (dateToggleBtn) {
+            document.querySelectorAll('#dateTypeToggle .toggle-btn').forEach(b => b.classList.remove('active'));
+            dateToggleBtn.classList.add('active');
+            GlobalFilter.dateType = dateToggleBtn.dataset.type;
+            if(typeof renderAll === 'function') renderAll();
+            return;
+        }
+
+        // Toggle Tier Drilldown (Canal/SDR)
+        const tierToggleBtn = e.target.closest('#tierDrilldownToggle .toggle-btn');
+        if (tierToggleBtn) {
+            document.querySelectorAll('#tierDrilldownToggle .toggle-btn').forEach(b => b.classList.remove('active'));
+            tierToggleBtn.classList.add('active');
+            GlobalFilter.tierDrilldown = tierToggleBtn.dataset.type;
+            if(typeof renderTierPerformance === 'function') renderTierPerformance();
+            return;
+        }
+
+        // Toggle Mostrar/Ocultar "Não identificado"
+        const unidentToggleBtn = e.target.closest('#unidentifiedTierToggle');
+        if (unidentToggleBtn) {
+            unidentToggleBtn.classList.toggle('active');
+            GlobalFilter.showUnidentifiedTier = unidentToggleBtn.classList.contains('active');
+            if(typeof renderTierPerformance === 'function') renderTierPerformance();
+            return;
+        }
+
+        // Toggle Loss Drilldown (Canal/SDR)
+        const lossToggleBtn = e.target.closest('#lossDrilldownToggle .toggle-btn');
+        if (lossToggleBtn) {
+            document.querySelectorAll('#lossDrilldownToggle .toggle-btn').forEach(b => b.classList.remove('active'));
+            lossToggleBtn.classList.add('active');
+            GlobalFilter.lossDrilldown = lossToggleBtn.dataset.type;
+            if(typeof renderLossAnalysis === 'function') renderLossAnalysis();
+            return;
         }
     });
 
@@ -117,16 +159,6 @@ function initializeDateFilterComponent() {
             
             if(typeof renderAll === 'function') renderAll();
         }
-    });
-
-    // Eventos do Toggle de Data
-    toggleBtns.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            toggleBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            GlobalFilter.dateType = btn.dataset.type;
-            if(typeof renderAll === 'function') renderAll();
-        });
     });
 
     if (sdrSelect) sdrSelect.addEventListener('change', (e) => { GlobalFilter.sdrId = e.target.value; if(typeof renderAll === 'function') renderAll(); });
