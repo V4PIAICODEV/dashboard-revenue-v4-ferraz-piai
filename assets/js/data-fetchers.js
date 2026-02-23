@@ -374,7 +374,12 @@ function renderSdrPerformance() {
 
     tbody.innerHTML = '';
     
-    const validSdrs = Object.values(sdrMap).filter(s => s.pTotal > 0 || s.r > 0 || s.v > 0 || s.ag_perd > 0);
+    let validSdrs = Object.values(sdrMap).filter(s => s.pTotal > 0 || s.r > 0 || s.v > 0 || s.ag_perd > 0);
+
+    // Filtro do Botão Mostrar/Ocultar "Sem SDR"
+    if (!GlobalFilter.showSemSDR) {
+        validSdrs = validSdrs.filter(s => s.name !== 'Sem SDR');
+    }
 
     if(validSdrs.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#888">Sem dados</td></tr>';
