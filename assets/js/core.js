@@ -7,6 +7,7 @@ const GlobalFilter = {
     dateType: 'updated', // Alterna entre 'updated' e 'created'
     tierDrilldown: 'canal', // Alterna o detalhamento de tier entre 'canal' ou 'sdr'
     showUnidentifiedTier: true, // Mostra ou oculta o tier "Não identificado"
+    showSemSDR: true, // Mostra ou oculta o SDR "Sem SDR"
     lossDrilldown: 'canal' // Alterna o agrupamento de perdas entre 'canal' ou 'sdr'
 };
 
@@ -95,7 +96,7 @@ function initializeDateFilterComponent() {
             display.classList.remove('active');
         }
 
-        // --- Delegação de Eventos para os Toggles (Garante que botões carregados no HTML dps via fetch funcionem) ---
+        // --- Delegação de Eventos para os Toggles ---
 
         // Toggle Data (Atualização/Criação)
         const dateToggleBtn = e.target.closest('#dateTypeToggle .toggle-btn');
@@ -104,6 +105,15 @@ function initializeDateFilterComponent() {
             dateToggleBtn.classList.add('active');
             GlobalFilter.dateType = dateToggleBtn.dataset.type;
             if(typeof renderAll === 'function') renderAll();
+            return;
+        }
+
+        // Toggle Mostrar/Ocultar "Sem SDR"
+        const semSdrToggleBtn = e.target.closest('#semSdrToggle');
+        if (semSdrToggleBtn) {
+            semSdrToggleBtn.classList.toggle('active');
+            GlobalFilter.showSemSDR = semSdrToggleBtn.classList.contains('active');
+            if(typeof renderSdrPerformance === 'function') renderSdrPerformance();
             return;
         }
 
@@ -117,7 +127,7 @@ function initializeDateFilterComponent() {
             return;
         }
 
-        // Toggle Mostrar/Ocultar "Não identificado"
+        // Toggle Mostrar/Ocultar "Não identificado" (Tiers)
         const unidentToggleBtn = e.target.closest('#unidentifiedTierToggle');
         if (unidentToggleBtn) {
             unidentToggleBtn.classList.toggle('active');
